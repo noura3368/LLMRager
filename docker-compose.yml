@@ -1,0 +1,75 @@
+services:
+  watcher:
+    build: ./watcher
+    volumes:
+      - ./docs:/docs:ro
+      - ./data:/data
+      - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
+    environment:
+      CONFIG: /app/haiku.rag.yaml
+      DB: /data/haiku.rag.lancedb
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11435:11434"
+    gpus: all
+    restart: unless-stopped
+
+  ollama-init:
+    image: curlimages/curl:8.5.0
+    depends_on:
+      - ollama
+    volumes:
+      - ./scripts/ollama_init.sh:/ollama_init.sh:ro
+    entrypoint: ["/bin/sh","/ollama_init.sh"]
+    environment:
+      OLLAMA_URL: http://ollama:11434
+    restart: "no"
+
+  orchestrator:
+    build: ./llm_pipeline
+    ports:
+      - "8001:8001"
+    environment:
+      DB_PATH: /data/haiku.rag.lancedb
+      OLLAMA_URL: http://ollama:11434/api/generate
+      HAIKU_EMBEDDING_MODEL: nomic-embed-text
+      HAIKU_EMBEDDING_VECTOR_DIM: "768"
+    volumes:
+      - ./data:/data
+    depends_on:
+      - ollama
+
+  docling-serve:
+    image: ghcr.io/docling-project/docling-serve:latest
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+  api:
+    build: ./api
+    environment:
+      # where the haiku rag DB lives (shared with watcher)
+      HAIKU_DB_PATH: /data/haiku.rag.lancedb
+      # ollama endpoint (service name from compose)
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: gpt-oss:latest
+      OLLAMA_BASE_URL: http://rag_server-ollama-1:11434
+      HAIKU_EMBEDDING_MODEL: "nomic-embed-text"
+      HAIKU_EMBEDDING_VECTOR_DIM: "768"
+      TOP_K: "6"
+      MAX_CONTEXT_CHARS: "12000"
+    volumes:
+      - ./data:/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      - watcher
+      - ollama
+    restart: unless-stopped
+    
+volumes:
+  ollama:
