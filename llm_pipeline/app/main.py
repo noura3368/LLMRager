@@ -36,12 +36,12 @@ def extract_items_from_url(url: str) -> list[str]:
 async def health():
     return {"ok": True}
 
-@app.post("/process")
-async def process(payload: dict):
+@app.post("/generate")
+async def generate(payload: dict):
     api_url = payload.get("api_url", "")
     items = extract_items_from_url(api_url)
     rag_output = await retrieve_context(items)  
-    #main(items, rag_output) 
+    main(items, rag_output) 
     return {
         "api_url": api_url,
         "extracted_items": items,

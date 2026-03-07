@@ -4,9 +4,9 @@ import os
 
 DB_PATH = Path(os.getenv("DB_PATH", "/data/haiku.rag.lancedb"))
 
-async def retrieve_context(items: list[str], top_k: int = 25) -> str:
+async def retrieve_context(items: list[str], top_k: int = 10) -> str:
     query = " ".join(items)
-    query = "I have the following commands: " + query + ". Give me many new commands that would be accepted by the same system. Please give me a python list."
+    query = "I have the following commands: " + query + ". Give me many new commands would be accepted by the system. Return only a python list without cited chunks."
     chunks = []
     async with HaikuRAG(DB_PATH, read_only=True) as client:
         results = await client.ask(query)

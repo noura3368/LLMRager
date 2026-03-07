@@ -5,7 +5,7 @@ from pathlib import Path
 from services.prompt_builder import build_final_prompt
 import time, json
 from services.structured_output import generate_with_timing
-DEFAULT_MODEL = "devstral:24b"
+DEFAULT_MODEL = "qwen3-coder:latest"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
 
@@ -79,24 +79,12 @@ def load_models_from_csv(csv_path, model_start):
         info(f"CSV file not found at {csv_path}")
         return False
 
-def render_template_and_generate(model, params, output_path,prompt, timeout=600, rag_context=""):
+def render_template_and_generate(model, params, output_path,prompt, rag_context="", timeout=600):
     """Render template and generate structured response in-process"""
 
     # Base prompt built purely from your Jinja template
-    base_prompt = prompt.strip()
+    composed_prompt = prompt.strip()
 
-    if rag_context:
-        # Manual-aware final prompt
-        
-        composed_prompt = (
-            f"{base_prompt}\n\n"
-            "You can use the information in the device manual context below and the instructions.\n"
-            f"DEVICE MANUAL CONTEXT:\n{rag_context}\n"
-        )
-    else:
-        # Fallback: no RAG, just the original prompt
-        composed_prompt = base_prompt
-    
     print("Generated prompt:")
     print(composed_prompt)
     print("\n" + "="*50 + "\n")
@@ -109,9 +97,10 @@ def render_template_and_generate(model, params, output_path,prompt, timeout=600,
             ollama_host=OLLAMA_URL,
             timeout=timeout
         )
+        print("HELLOOOOO")
         # Convert to the format expected by the original system
         output_text = json.dumps([cmd.model_dump() for cmd in structured_response.commands], indent=2)
-        
+        print("nouuuuura")
         # Create response JSON
         response_json = {
             "model": model,
@@ -140,6 +129,7 @@ def render_template_and_generate(model, params, output_path,prompt, timeout=600,
 
 
 def main(extract_items, rag_output=None):
+        
         prompt = build_final_prompt(extracted_items=extract_items, rag_context=rag_output)
         config = load_config()
         models = []
@@ -148,10 +138,12 @@ def main(extract_items, rag_output=None):
         print(f"Inputted models {models}")
         if not models:
             info("No models loaded from CSV file. Using default model " + DEFAULT_MODEL)
-            models = models.append(DEFAULT_MODEL)
+            models = [DEFAULT_MODEL]
+            print(models)
         print(f"Models to process: {models}")
+        os.makedirs("out", exist_ok=True)
         for model in models:
-             resp = requests.post(f"{OLLAMA_URL}/api/pull", json={"model": model, "stream": False}, timeout=600)
+             resp = requests.post(f"{OLLAMA_URL}/api/pull", json={"name": model, "stream": False})
              resp.raise_for_status()
              info(f"Processing model: {model}")
              timestamp = str(int(time.time() * 1000000000))

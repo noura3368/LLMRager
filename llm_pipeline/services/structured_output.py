@@ -89,9 +89,10 @@ def generate_with_timing(model_name: str, prompt: str, ollama_host: str = None, 
     """
 
     # Get cached generator
+    print("in structured output, getting generator")
     gen = get_structured_generator_cached(model_name, ollama_host, timeout)
     started_at = datetime.now(timezone.utc)
-    
+    print("got model!!!")
     # Generate structured response
     response = gen(prompt)
     

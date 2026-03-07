@@ -10,6 +10,6 @@ done
 
 # Pull required models (add/remove as needed)
 curl -s "$OLLAMA_URL/api/pull" -d '{"name":"gpt-oss"}' >/dev/null
-curl -s "$OLLAMA_URL/api/pull" -d '{"name":"qwen3-embedding:4b"}' >/dev/null
+curl -s "$OLLAMA_URL/api/pull" -d '{"name":"nomic-embed-text"}' >/dev/null
 
 echo "Pulled llama3.1:8b"
