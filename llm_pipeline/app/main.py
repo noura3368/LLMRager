@@ -1,9 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
-
-from services.run import main
 from services.rag_service import retrieve_context
+from services.run import main
 
 app = FastAPI()
 
