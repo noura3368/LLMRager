@@ -81,7 +81,7 @@ def generate_with_timing(model_name: str, prompt: str, ollama_host: str = None, 
     Args:
         model_name: The name of the Ollama model to use
         prompt: The prompt to send to the model
-        ollama_host: Optional Ollama host URL (e.g., http://localhost:11434)
+        ollama_host: Ollama host URL (e.g., http://localhost:11434)
         
     Returns:
         Tuple of (SecurityTestResponse, started_at, ended_at, elapsed_ms)
@@ -92,7 +92,6 @@ def generate_with_timing(model_name: str, prompt: str, ollama_host: str = None, 
     print("in structured output, getting generator")
     gen = get_structured_generator_cached(model_name, ollama_host, timeout)
     started_at = datetime.now(timezone.utc)
-    print("got model!!!")
     # Generate structured response
     response = gen(prompt)
     
