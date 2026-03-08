@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from services.rag_service import retrieve_context
-from services.run import main
+from services.run import main_func
 
 app = FastAPI()
 
@@ -28,7 +28,7 @@ async def generate(payload: GenerateRequest):
     rag_output = await retrieve_context(items)
 
     main_output = await run_in_threadpool(
-        main,
+        main_func,
         items,
         rag_output,
         number_of_commands,
@@ -49,7 +49,7 @@ async def modify(payload: GenerateRequest):
     rag_output = await retrieve_context(items)
 
     main_output = await run_in_threadpool(
-        main,
+        main_func,
         items,
         rag_output,
         number_of_commands,
@@ -59,3 +59,4 @@ async def modify(payload: GenerateRequest):
     return {
         "results": main_output,
     }
+    
