@@ -40,8 +40,8 @@ lancedb:
 embeddings:
   model:
     provider: ollama
-    name: qwen3-embedding:4b
-    vector_dim: 2560
+    name: bge-m3:latest
+    vector_dim: 1024
     base_url: null
 reranking:
   model:

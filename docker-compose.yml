@@ -2,7 +2,7 @@ services:
   watcher:
     build: ./watcher
     volumes:
-      - ./docs:/docs:ro
+      - ../docs:/docs:ro
       - ./data:/data
       - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
     environment:
@@ -38,9 +38,8 @@ services:
       - "8001:8001"
     environment:
       DB_PATH: /data/haiku.rag.lancedb
-      OLLAMA_URL: http://ollama:11434/
-      HAIKU_EMBEDDING_MODEL: nomic-embed-text
-      HAIKU_EMBEDDING_VECTOR_DIM: "768"
+      OLLAMA_URL: bge-m3:latest
+      HAIKU_EMBEDDING_VECTOR_DIM: "1024"
     volumes:
       - ./data:/data
     depends_on:
