@@ -4,9 +4,9 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+COPY main.py /app/main.py
+COPY ./services/ /app/services/
 
-COPY app ./app
-COPY services ./services
 COPY haiku.rag.yaml /app/haiku.rag.yaml
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

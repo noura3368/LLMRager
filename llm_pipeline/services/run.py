@@ -4,6 +4,7 @@ import os, requests
 from services.structured_output import generate_with_timing
 from services.prompt_builder import build_final_prompt_generate, build_final_prompt_modify
 import time, json
+from pathlib import Path
 
 DEFAULT_MODEL = "devstral:24b"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")

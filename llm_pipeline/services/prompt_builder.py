@@ -16,6 +16,7 @@ In the output:
 - the parameters are the parameters passed with the command. 
 Do not invent commands and do not invent parameters unless they are valid.
 You are allowed to return parameters, but do not return parameters that would change the state of the system.
+Make sure the commands are unique.
 """
 
 
@@ -37,4 +38,5 @@ In the output:
 - the parameters are the parameters passed with the command. 
 Do not invent commands and do not invent parameters unless they are valid.
 You are allowed to return parameters, but do not return parameters that would change the state of the system.
+Do not repeat commands. 
 """
