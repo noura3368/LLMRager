@@ -38,8 +38,9 @@ services:
       - "8001:8001"
     environment:
       DB_PATH: /data/haiku.rag.lancedb
-      OLLAMA_URL: bge-m3:latest
-      HAIKU_EMBEDDING_VECTOR_DIM: "1024"
+      OLLAMA_URL: http://ollama:11434
+      HAIKU_EMBEDDING_MODEL: "nomic-embed-text:latest"
+      HAIKU_EMBEDDING_VECTOR_DIM: "768"
     volumes:
       - ./data:/data
     depends_on:
@@ -59,7 +60,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: gpt-oss:latest
       OLLAMA_BASE_URL: http://rag_server-ollama-1:11434
-      HAIKU_EMBEDDING_MODEL: "nomic-embed-text"
+      HAIKU_EMBEDDING_MODEL: "nomic-embed-text:latest"
       HAIKU_EMBEDDING_VECTOR_DIM: "768"
       TOP_K: "6"
       MAX_CONTEXT_CHARS: "12000"
