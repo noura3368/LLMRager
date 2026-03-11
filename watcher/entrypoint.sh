@@ -24,4 +24,10 @@ for _ in range(180):
 else:
     raise SystemExit("docling-serve not ready")
 PY
-exec haiku-rag --config "$CONFIG" serve --monitor --db "$DB"
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+else
+  exec python -u /app/watcher.py
+fi
+#python /app/custom_ingest.py
+#exec haiku-rag --config "$CONFIG" serve --monitor --db "$DB"

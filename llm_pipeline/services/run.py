@@ -174,6 +174,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
         print(f"Models to process: {models}")
         #os.makedirs("out", exist_ok=True)
     list_of_commands = []
+    print(models)
     for model in models:
         resp = requests.post(f"{OLLAMA_URL}/api/pull", json={"name": model, "stream": False})
         resp.raise_for_status()
@@ -192,7 +193,8 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
             continue
         else:
             parsed_results = parse_results(success, list_of_commands)
-            list_of_commands.extend(parsed_results)
+            #print(f"Extracted commands from model {model}: {parsed_results}, total commands so far: {list_of_commands}")
+            #list_of_commands.extend(parsed_results)
     return list_of_commands
         
             

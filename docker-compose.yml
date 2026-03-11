@@ -2,14 +2,33 @@ services:
   watcher:
     build: ./watcher
     volumes:
-      - ../docs:/docs:ro
+      - ./raw_docs:/raw_docs
+      - ./docs_processed:/docs_processed
       - ./data:/data
       - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
     environment:
       CONFIG: /app/haiku.rag.yaml
       DB: /data/haiku.rag.lancedb
+      OLLAMA_URL: http://ollama:11434
     depends_on:
       - docling-serve
+      - ollama
+    restart: unless-stopped
+
+  haiku-monitor:
+    build: ./watcher
+    command: ["haiku-rag", "--config", "/app/haiku.rag.yaml", "serve", "--monitor", "--db", "/data/haiku.rag.lancedb"]
+    volumes:
+      - ./docs_processed:/docs_processed
+      - ./data:/data
+      - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
+    environment:
+      CONFIG: /app/haiku.rag.yaml
+      OLLAMA_URL: http://ollama:11434
+      DB: /data/haiku.rag.lancedb
+    depends_on:
+      - docling-serve
+      - ollama
     restart: unless-stopped
 
   ollama:
@@ -38,6 +57,7 @@ services:
       - "8001:8001"
     environment:
       DB_PATH: /data/haiku.rag.lancedb
+      CONFIG: /app/haiku.rag.yaml
       OLLAMA_URL: http://ollama:11434
       HAIKU_EMBEDDING_MODEL: "nomic-embed-text:latest"
       HAIKU_EMBEDDING_VECTOR_DIM: "768"

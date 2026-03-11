@@ -1,4 +1,0 @@
-
-
-model_csv="hello.csv"
-

@@ -8,7 +8,7 @@ def build_final_prompt_generate(
     
     You are tasked with generating {str(number_of_commands)} commands that a target would accept for fuzzing. 
     It is known that target accepts the following commands: {extracted_items}
-    You may use your own internal knowledge and the following retrieved context to generate NEW commands for the target: 
+    You may use your own internal knowledge and the following retrieved context to generate NEW commands for the target. The neighbours of the commands are also useful to generate new commands.: 
     {rag_context}
 
 In the output:

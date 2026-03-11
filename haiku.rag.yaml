@@ -8,7 +8,7 @@ storage:
   vacuum_retention_seconds: 86400
 monitor:
   directories:
-    - /docs
+    - /docs_processed
   delete_orphans: true
   ignore_patterns:
     - "**/.DS_Store"
@@ -40,13 +40,11 @@ lancedb:
 embeddings:
   model:
     provider: ollama
-    name: bge-m3:latest
-    vector_dim: 1024
+    name: nomic-embed-text:latest
+    vector_dim: 768
     base_url: null
 reranking:
-  model:
-    provider: mxbai
-    name: mixedbread-ai/mxbai-rerank-base-v2
+  model: null
 qa:
   model:
     provider: ollama
@@ -117,7 +115,7 @@ processing:
     max_tokens: null
 search:
   limit: 8
-  context_radius: 1
+  context_radius: 2
   max_context_items: 10
   max_context_chars: 10000
   vector_index_metric: cosine

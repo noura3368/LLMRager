@@ -9,7 +9,5 @@ until curl -s "$OLLAMA_URL/api/tags" >/dev/null; do
 done
 
 # Pull required models (add/remove as needed)
-curl -s "$OLLAMA_URL/api/pull" -d '{"name":"gpt-oss"}' >/dev/null
-curl -s "$OLLAMA_URL/api/pull" -d '{"name":"bge-m3:latest"}' >/dev/null
-
-echo "Pulled llama3.1:8b"
+curl -s "$OLLAMA_URL/api/pull" -d '{"name":"qwen2.5:7b"}' >/dev/null
+curl -s "$OLLAMA_URL/api/pull" -d '{"name":"nomic-embed-text:latest"}' >/dev/null
