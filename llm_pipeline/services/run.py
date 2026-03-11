@@ -69,7 +69,7 @@ def load_models_from_csv(csv_path):
                 for row in reader:
                     model_name = row['Model Name'].strip()
                     index += 1
-                    if model_name and index >= model_start:  # Skip empty rows
+                    if model_name:  # Skip empty rows
                         models.append(model_name)
             info(f"Loaded {len(models)} models from {csv_path}")
             return models
