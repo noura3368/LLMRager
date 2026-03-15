@@ -6,8 +6,8 @@ from services.prompt_builder import build_final_prompt_generate, build_final_pro
 import time, json
 from pathlib import Path
 
+# default model if no CSV provided in config.txt or CSV loading fails
 DEFAULT_MODEL = "devstral:24b"
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
 
 def info(message):
@@ -18,7 +18,6 @@ def info(message):
 
 def load_config(config_file="./config.txt"):
     config = defaultdict()
-    print(os.path.exists(config_file))
     try:
         if not os.path.exists(config_file):
             info(f"Config file {config_file} not found, using defaults")
@@ -69,7 +68,7 @@ def load_models_from_csv(csv_path):
                 for row in reader:
                     model_name = row['Model Name'].strip()
                     index += 1
-                    if model_name:  # Skip empty rows
+                    if model_name:
                         models.append(model_name)
             info(f"Loaded {len(models)} models from {csv_path}")
             return models
@@ -80,7 +79,7 @@ def load_models_from_csv(csv_path):
         info(f"CSV file not found at {csv_path}")
         return False
 
-def render_template_and_generate(model, params, output_path,prompt, rag_context="", timeout=600):
+def render_template_and_generate(model, params, output_path, prompt, default_ollama_host, rag_context="", timeout=600):
     """Render template and generate structured response in-process"""
 
     # Base prompt built purely from your Jinja template
@@ -95,7 +94,7 @@ def render_template_and_generate(model, params, output_path,prompt, rag_context=
         structured_response, started_at, ended_at, elapsed_ms = generate_with_timing(
             model_name=model,
             prompt=composed_prompt,
-            ollama_host=OLLAMA_URL,
+            ollama_host=os.getenv("OLLAMA_URL", default_ollama_host),
             timeout=timeout
         )
         # Convert to the format expected by the original system
@@ -129,9 +128,10 @@ def render_template_and_generate(model, params, output_path,prompt, rag_context=
         return False
 
 
-def parse_results(response, list_of_commands):
+def parse_results(response):
     """Parse the generated response and extract commands"""
     print(response, "parsing response")
+    list_of_commands = []
     try:
         if isinstance(response, dict) and "response" in response:
             response_text = response["response"]
@@ -164,19 +164,37 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
     elif type == "modify":
         prompt = build_final_prompt_modify(extracted_items=extract_items, rag_context=rag_output, number_of_commands=number_of_commands)
     config = load_config()
+    default_ollama_url = ""
+    default_prompts = "/app/prompts/original"
+    if config and "USE_DOCKER_ENV_FILE" in config: 
+        if config.get("USE_DOCKER_ENV_FILE").lower() == "true":
+            if config.get("OLLAMA_URL"):
+                os.environ["OLLAMA_URL"] = config["OLLAMA_URL"]
+            if config.get("PROMPTS"):
+                os.environ["PROMPTS"] = config["PROMPTS"]
+            if config.get("MODELS_CSV"):
+                os.environ["MODELS_CSV"] = config["MODELS_CSV"]
+        else:
+            if config.get("OLLAMA_URL"):
+                default_ollama_url = config["OLLAMA_URL"]
+            # so if no prompts are inputted from system var or config, it will default to the original prompt in the prompts folder
+            if config.get("PROMPTS"):
+                default_prompts = config["PROMPTS"]
+
     models = []
-    if config and "models_csv" in config:
-        models = load_models_from_csv(config["models_csv"])
-    print(f"Inputted models {models}")
-    if not models:
-        info("No models loaded from CSV file. Using default model " + DEFAULT_MODEL)
+    models_csv = os.getenv("MODELS_CSV")
+
+    if models_csv:
+        models = load_models_from_csv(models_csv)
+        print(f"Inputted models {models}")
+    else:
         models = [DEFAULT_MODEL]
         print(f"Models to process: {models}")
-        #os.makedirs("out", exist_ok=True)
+
     list_of_commands = []
-    print(models)
+   
     for model in models:
-        resp = requests.post(f"{OLLAMA_URL}/api/pull", json={"name": model, "stream": False})
+        resp = requests.post(f'{os.getenv("OLLAMA_URL", default_ollama_url)}/api/pull', json={"name": model, "stream": False})
         resp.raise_for_status()
         info(f"Processing model: {model}")
         timestamp = str(int(time.time() * 1000000000))
@@ -186,15 +204,15 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
                     
         # Run template and generate in-process
         output_path = Path(f"out/{model}_{timestamp}.json")
-        success = render_template_and_generate(model, params, output_path, prompt, rag_output)
+        success = render_template_and_generate(model, params, output_path, prompt, default_ollama_url, rag_output)
         
         if not success:
             info(f"Model returned unstructured response, not included in output: {model}")
             continue
         else:
-            parsed_results = parse_results(success, list_of_commands)
+            parsed_results = parse_results(success)
             #print(f"Extracted commands from model {model}: {parsed_results}, total commands so far: {list_of_commands}")
-            #list_of_commands.extend(parsed_results)
+            list_of_commands.extend(parsed_results)
     return list_of_commands
         
             
