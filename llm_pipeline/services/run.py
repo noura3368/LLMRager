@@ -1,14 +1,12 @@
 import datetime, csv, sys
-from collections import defaultdict
 import os, requests
 from services.structured_output import generate_with_timing
-from services.prompt_builder import build_final_prompt_generate, build_final_prompt_modify
 import time, json
 from pathlib import Path
-
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from services.config_utils import load_config
 # default model if no CSV provided in config.txt or CSV loading fails
 DEFAULT_MODEL = "devstral:24b"
-
 
 def info(message):
     """Print info message with timestamp"""
@@ -16,58 +14,31 @@ def info(message):
     print(f"[{timestamp}] [INFO] {message}")
 
 
-def load_config(config_file="./config.txt"):
-    config = defaultdict()
+def get_available_templates(templates_dir, type):
+    """Get list of available Jinja templates"""
+    templates = None 
     try:
-        if not os.path.exists(config_file):
-            info(f"Config file {config_file} not found, using defaults")
-            return False
-            
-        with open(config_file, 'r', encoding='utf-8') as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                
-                # Skip empty lines and comments
-                if not line or line.startswith('#'):
-                    continue
-                
-                # Parse key=value pairs
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    key = key.strip()
-                    value = value.strip()
-                    
-                    # Remove quotes if present
-                    if value.startswith('"') and value.endswith('"'):
-                        value = value[1:-1]
-                    elif value.startswith("'") and value.endswith("'"):
-                        value = value[1:-1]
-            
-                    config[key] = value
-                else:
-                    info(f"Warning: Invalid config line {line_num}: {line}")
-        
-        info(f"Loaded configuration from {config_file}")
-        return config
-        
+        templates_path = Path(templates_dir)
+        if templates_path.exists():
+            for file in templates_path.glob("*.jinja") and type in file.name:
+                templates = file.name 
+        info(f"Found {len(templates)} templates: {templates}")
+        return templates
     except Exception as e:
-        info(f"Error loading config file {config_file}: {e}")
-        info("Using default configuration")
-        return False
+        info(f"Error getting templates: {e}")
+        return None 
 
 
 def load_models_from_csv(csv_path):
     """Load model names from CSV file"""
     models = []
-    index = 0
     csv_file = Path(csv_path)
     if csv_file.is_file():
         try:
             with open(csv_path, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    model_name = row['Model Name'].strip()
-                    index += 1
+                    model_name = row.get("Model Name", "").strip()
                     if model_name:
                         models.append(model_name)
             info(f"Loaded {len(models)} models from {csv_path}")
@@ -77,13 +48,29 @@ def load_models_from_csv(csv_path):
             return []
     else: 
         info(f"CSV file not found at {csv_path}")
-        return False
+        return []
 
-def render_template_and_generate(model, params, output_path, prompt, default_ollama_host, rag_context="", timeout=600):
+def render_template_and_generate(template_path, model, params, output_path, prompt, default_ollama_host, type, timeout=600):
     """Render template and generate structured response in-process"""
-
+    # Build template environment
+    env = Environment(
+        loader=FileSystemLoader(str(template_path.parent)),
+        autoescape=False,
+        undefined=StrictUndefined,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    
+    jinja_template = env.get_template(template_path.name)
+    
+    # Render the template
+    try:
+        rendered_prompt = jinja_template.render(**params)
+    except Exception as e:
+        print(f"Error rendering template: {e}", file=sys.stderr)
+        return False
     # Base prompt built purely from your Jinja template
-    composed_prompt = prompt.strip()
+    composed_prompt = rendered_prompt.strip()
 
     print("Generated prompt:")
     print(composed_prompt)
@@ -111,14 +98,6 @@ def render_template_and_generate(model, params, output_path, prompt, default_oll
             "started_at": started_at.isoformat(),
             "ended_at": ended_at.isoformat()
         }
-        
-        # Write output
-        #output_path.parent.mkdir(parents=True, exist_ok=True)
-        #with open(output_path, "w", encoding="utf-8") as f:
-        #    json.dump(response_json, f, ensure_ascii=False, indent=2)
-        
-        #print(f"✅ Output written to: {output_path}")
-        #print("✅ Used structured output with outlines")
         
         return response_json
         
@@ -153,58 +132,68 @@ def parse_results(response):
             return list_of_commands
         except json.JSONDecodeError:
             info("Response is not valid JSON, cannot extract commands")
+            return []
         
     except Exception as e:
         info(f"Error parsing results: {e}")
+        return [] 
 
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
-    prompt = ""
-    if type == "generate":
-        prompt = build_final_prompt_generate(extracted_items=extract_items, rag_context=rag_output, number_of_commands=number_of_commands)
-    elif type == "modify":
-        prompt = build_final_prompt_modify(extracted_items=extract_items, rag_context=rag_output, number_of_commands=number_of_commands)
     config = load_config()
-    default_ollama_url = ""
+    # maybe empty strings below 
+    default_ollama_url = "http://localhost:11434"
     default_prompts = "/app/prompts/original"
-    if config and "USE_DOCKER_ENV_FILE" in config: 
-        if config.get("USE_DOCKER_ENV_FILE").lower() == "true":
-            if config.get("OLLAMA_URL"):
+    models_csv = None 
+    if config: # if config file exists and we want to use it 
+        if config.get("USE_DOCKER_ENV_FILE") and config.get("USE_DOCKER_ENV_FILE").lower() == "true":
+            if config.get("OLLAMA_URL"): # save all the values as environment varibles
                 os.environ["OLLAMA_URL"] = config["OLLAMA_URL"]
             if config.get("PROMPTS"):
                 os.environ["PROMPTS"] = config["PROMPTS"]
-            if config.get("MODELS_CSV"):
-                os.environ["MODELS_CSV"] = config["MODELS_CSV"]
-        else:
+            if config.get("MODELS_CSV"): # no system environment variable for MODELS_CSV. use default value if models_csv is not set or file does not exist.
+                models_csv = config["MODELS_CSV"]
+        else: # if we are supposed to use system environment variables instead, save the values in config file as backup instead 
+            # set the defaults values from config in case system environment variables are not set. 
             if config.get("OLLAMA_URL"):
                 default_ollama_url = config["OLLAMA_URL"]
             # so if no prompts are inputted from system var or config, it will default to the original prompt in the prompts folder
             if config.get("PROMPTS"):
                 default_prompts = config["PROMPTS"]
+            
 
-    models = []
-    models_csv = os.getenv("MODELS_CSV")
+    # Get available template, either modify or generate type. If no template found, exit the program.
+    # original template exists in prompts/original 
+    # user can introduce new templates by adding them to the prompts folder and specifying the type in the template name (e.g., modify or generate) and the folder path in config.txt. 
+    available_template = get_available_templates(os.getenv("PROMPTS", default_prompts))
+    if not available_template:
+        info(f"No templates found in {os.getenv("PROMPTS", default_prompts)}. Exiting.")
+        sys.exit(1)
+    
+    models = [DEFAULT_MODEL]
 
-    if models_csv:
-        models = load_models_from_csv(models_csv)
-        print(f"Inputted models {models}")
-    else:
-        models = [DEFAULT_MODEL]
-        print(f"Models to process: {models}")
-
-    list_of_commands = []
+    if models_csv: 
+        list_of_models = load_models_from_csv(models_csv)
+        if len(list_of_models) > 0:
+            models = list_of_models
+        print(f"Models to process {models}")
+    list_of_commands = [] # final list of commands from all the models 
    
     for model in models:
-        resp = requests.post(f'{os.getenv("OLLAMA_URL", default_ollama_url)}/api/pull', json={"name": model, "stream": False})
+        # Uses whatever value is set as env variable OLLAMA_URL, or defaulted config file value. 
+        resp = requests.post(f'{os.getenv("OLLAMA_URL", default_ollama_url)}/api/pull', json={"name": model, "stream": False}, timeout=400)
         resp.raise_for_status()
         info(f"Processing model: {model}")
         timestamp = str(int(time.time() * 1000000000))
         params = {
-            #"ITERATION": i
+            "EXTRACTED_ITEMS": extract_items,
+            "RAG_CONTEXT": rag_output,
+            "NUMBER_OF_COMMANDS": number_of_commands
+            
         }
                     
         # Run template and generate in-process
         output_path = Path(f"out/{model}_{timestamp}.json")
-        success = render_template_and_generate(model, params, output_path, prompt, default_ollama_url, rag_output)
+        success = render_template_and_generate(available_template, model, params, output_path, prompt, os.getenv("OLLAMA_URL", default_ollama_url), type)
         
         if not success:
             info(f"Model returned unstructured response, not included in output: {model}")

@@ -22,11 +22,7 @@ class SecurityTestCommand(BaseModel):
     A single security test command with parameters.
     """
     command: str = Field(
-        description="The command string to be sent to the target device"
-    )
-    parameters: List[str] = Field(
-        default_factory=list,
-        description="List of concrete parameter values to test with the command (provide actual numbers/values, not descriptions)"
+        description="The command and parameters string to be sent to the target device"
     )
 
 

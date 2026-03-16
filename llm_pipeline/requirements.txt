@@ -5,3 +5,4 @@ httpx
 haiku.rag
 outlines 
 ollama
+jinja2

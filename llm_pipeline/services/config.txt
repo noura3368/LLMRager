@@ -1,4 +1,5 @@
 MODELS=file.csv
 PROMPTS=/app/prompts/
 OLLAMA_URL=http://localhost:11434
+PRE_PROCESSING_MODEL=qwen2.5:7b
 USE_DOCKER_ENV_FILE=true
