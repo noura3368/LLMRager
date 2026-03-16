@@ -2,11 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY main.py /app/main.py
-COPY ./services/ /app/services/
-COPY ./prompts/ /app/prompts/
-COPY haiku.rag.yaml /app/haiku.rag.yaml
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+COPY llm_pipeline/requirements.txt /app/llm_pipeline/requirements.txt
+RUN pip install --no-cache-dir -r /app/llm_pipeline/requirements.txt
+
+COPY llm_pipeline /app/llm_pipeline
+
+CMD ["uvicorn", "llm_pipeline.main:app", "--host", "0.0.0.0", "--port", "8001"]

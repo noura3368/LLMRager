@@ -1,12 +1,16 @@
 services:
   watcher:
-    build: ./watcher
+    build:
+      context: .
+      dockerfile: watcher/Dockerfile
+    working_dir: /app
     volumes:
       - ./raw_docs:/raw_docs
       - ./docs_processed:/docs_processed
       - ./data:/data
       - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
     environment:
+      PYTHONPATH: /app
       CONFIG: /app/haiku.rag.yaml
       DB: /data/haiku.rag.lancedb
       OLLAMA_URL: http://ollama:11434
@@ -16,13 +20,17 @@ services:
     restart: unless-stopped
 
   haiku-monitor:
-    build: ./watcher
+    build:
+      context: .
+      dockerfile: watcher/Dockerfile
+    working_dir: /app
     command: ["haiku-rag", "--config", "/app/haiku.rag.yaml", "serve", "--monitor", "--db", "/data/haiku.rag.lancedb"]
     volumes:
       - ./docs_processed:/docs_processed
       - ./data:/data
       - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
     environment:
+      PYTHONPATH: /app
       CONFIG: /app/haiku.rag.yaml
       OLLAMA_URL: http://ollama:11434
       DB: /data/haiku.rag.lancedb
@@ -52,11 +60,16 @@ services:
     restart: "no"
 
   orchestrator:
-    build: ./llm_pipeline
-    env_file: ./llm_pipeline/services/.env
+    build:
+      context: .
+      dockerfile: llm_pipeline/Dockerfile
+    working_dir: /app
+    env_file:
+      - ./llm_pipeline/services/.env
     ports:
       - "8001:8001"
     environment:
+      PYTHONPATH: /app
       DB_PATH: /data/haiku.rag.lancedb
       CONFIG: /app/haiku.rag.yaml
       OLLAMA_URL: http://ollama:11434
@@ -64,6 +77,8 @@ services:
       HAIKU_EMBEDDING_VECTOR_DIM: "768"
     volumes:
       - ./data:/data
+      - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
+      - ./llm_pipeline/prompts:/app/llm_pipeline/prompts
     depends_on:
       - ollama
 
