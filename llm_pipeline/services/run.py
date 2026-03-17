@@ -1,10 +1,10 @@
 import datetime, csv, sys
 import os, requests
-from services.structured_output import generate_with_timing
+from .structured_output import generate_with_timing
 import time, json
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
-from services.config_utils import load_config
+from .config_utils import load_config
 # default model if no CSV provided in config.txt or CSV loading fails
 DEFAULT_MODEL = "devstral:24b"
 
@@ -17,12 +17,14 @@ def info(message):
 def get_available_templates(templates_dir, type):
     """Get list of available Jinja templates"""
     templates = None 
+    print(templates_dir, "template dir!!!")
     try:
         templates_path = Path(templates_dir)
         if templates_path.exists():
-            for file in templates_path.glob("*.jinja") and type in file.name:
-                templates = file.name 
-        info(f"Found {len(templates)} templates: {templates}")
+            for file in templates_path.glob("*.jinja"):
+                if type in file.name:
+                    templates = file
+            info(f"Found templates: {templates}")
         return templates
     except Exception as e:
         info(f"Error getting templates: {e}")
@@ -50,9 +52,10 @@ def load_models_from_csv(csv_path):
         info(f"CSV file not found at {csv_path}")
         return []
 
-def render_template_and_generate(template_path, model, params, output_path, prompt, default_ollama_host, type, timeout=600):
+def render_template_and_generate(template_path, model, params, output_path, default_ollama_host, type, timeout=600):
     """Render template and generate structured response in-process"""
     # Build template environment
+    print(template_path, "template path!!!")
     env = Environment(
         loader=FileSystemLoader(str(template_path.parent)),
         autoescape=False,
@@ -126,7 +129,7 @@ def parse_results(response):
             if isinstance(parsed, list):
                 for item in parsed:
                     if isinstance(item, dict) and "command" in item:
-                        list_of_commands.append(item["command"])
+                        list_of_commands.append(item["command"] )
             else:
                 info("Parsed JSON is not a list, cannot extract commands")
             return list_of_commands
@@ -140,9 +143,10 @@ def parse_results(response):
 
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
     config = load_config()
+    print(config)
     # maybe empty strings below 
     default_ollama_url = "http://localhost:11434"
-    default_prompts = "/app/prompts/original"
+    default_prompts = "prompts/original"
     models_csv = None 
     if config: # if config file exists and we want to use it 
         if config.get("USE_DOCKER_ENV_FILE") and config.get("USE_DOCKER_ENV_FILE").lower() == "true":
@@ -164,7 +168,8 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
     # Get available template, either modify or generate type. If no template found, exit the program.
     # original template exists in prompts/original 
     # user can introduce new templates by adding them to the prompts folder and specifying the type in the template name (e.g., modify or generate) and the folder path in config.txt. 
-    available_template = get_available_templates(os.getenv("PROMPTS", default_prompts))
+   
+    available_template = get_available_templates(os.getenv("PROMPTS", default_prompts), type)
     if not available_template:
         info(f"No templates found in {os.getenv("PROMPTS", default_prompts)}. Exiting.")
         sys.exit(1)
@@ -193,7 +198,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
                     
         # Run template and generate in-process
         output_path = Path(f"out/{model}_{timestamp}.json")
-        success = render_template_and_generate(available_template, model, params, output_path, prompt, os.getenv("OLLAMA_URL", default_ollama_url), type)
+        success = render_template_and_generate(available_template, model, params, output_path, os.getenv("OLLAMA_URL", default_ollama_url), type)
         
         if not success:
             info(f"Model returned unstructured response, not included in output: {model}")

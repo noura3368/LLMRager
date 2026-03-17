@@ -1,14 +1,15 @@
 You are a fuzzing engine. 
     
 You are tasked with generating {{ NUMBER_OF_COMMANDS }} commands that a target would accept for fuzzing. 
-It is known that target accepts the following commands: {{ EXTRACTED_COMMANDS }}
+It is known that target accepts the following commands: {{ EXTRACTED_ITEMS }}
 You may use your own internal knowledge and the following retrieved context to generate NEW commands for the target. 
 The neighbours of the commands are also useful to generate new commands: 
 {{ RAG_CONTEXT }}
 
 In the output:
-Please return a command and parameter combination that can be sent to the target. 
+The command is the string to be sent to the target
+The parameters that can be sent with the command to the target. 
 
 Do not invent commands and do not invent parameters unless they are valid.
-Do not include commands and parameters that would change the state of the system.
+Do not include commands that would change the state of the system.
 Make sure that each of your responses is unique.

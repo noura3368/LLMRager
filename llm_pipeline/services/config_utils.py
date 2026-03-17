@@ -5,7 +5,7 @@ def info(message):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] [INFO] {message}")
 
-def load_config(config_file="./config.txt"):
+def load_config(config_file="/app/llm_pipeline/services/config.txt"):
     config = {}
     try:
         if not os.path.exists(config_file):

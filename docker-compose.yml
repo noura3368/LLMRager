@@ -64,8 +64,6 @@ services:
       context: .
       dockerfile: llm_pipeline/Dockerfile
     working_dir: /app
-    env_file:
-      - ./llm_pipeline/services/.env
     ports:
       - "8001:8001"
     environment:
@@ -87,6 +85,8 @@ services:
     restart: unless-stopped
     ports:
       - "5001:5001"
+    volumes:
+      - /data2/nkhajehn/docling_tmp:/tmp
   api:
     build: ./api
     environment:
