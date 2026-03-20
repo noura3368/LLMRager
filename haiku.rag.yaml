@@ -124,7 +124,7 @@ providers:
   ollama:
     base_url: http://localhost:11434
   docling_serve:
-    base_url: http://docling-serve:5001
+    base_url: http://localhost:5001
     api_key: ''
 prompts:
   domain_preamble: ''

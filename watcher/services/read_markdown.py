@@ -64,9 +64,8 @@ Markdown:
 """
 
 
-def read_markdown_file(path: str | Path) -> str:
-    text = Path(path).read_text(encoding="utf-8")
-    return html.unescape(text)
+def read_markdown_file(markdown_text) -> str:
+    return html.unescape(markdown_text)
 
 
 def split_into_sections(md: str) -> List[str]:
@@ -307,8 +306,7 @@ def load_ollama_models(ollama_url, preprocessing_model):
         print(f"Error connecting to Ollama at {ollama_url}: {e}")
         return False
 
-def main_func(watcher_call=False) -> None:
-    input_md = Path("docling_test/output.md")
+def main_func(markdown_text, watcher_call=False) -> None:
     output_json = Path("commands_extracted.json")
     config = load_config()
     pre_processing_model_default = MODEL_NAME
@@ -328,7 +326,7 @@ def main_func(watcher_call=False) -> None:
 
     if load_ollama_models(ollama_url_default, pre_processing_model_default):
         client = ollama.Client(host=os.getenv("OLLAMA_URL", ollama_url_default))
-        records = extract_records_from_markdown_file(input_md, model_name=os.getenv("PRE_PROCESSING_MODEL", pre_processing_model_default), client=client)
+        records = extract_records_from_markdown_file(markdown_text, model_name=os.getenv("PRE_PROCESSING_MODEL", pre_processing_model_default), client=client)
         if watcher_call:
             return records 
         write_records_json(records, output_json)
@@ -338,5 +336,5 @@ def main_func(watcher_call=False) -> None:
         print("Failed to load models from Ollama. Exiting.", flush=True)
 
 
-if __name__ == "__main__":
-    main_func()
+#if __name__ == "__main__":
+#    main_func()

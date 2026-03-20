@@ -84,9 +84,9 @@ def is_instruction_manual(path: Path) -> bool:
 
 
 def preprocess_manual(path: Path) -> list[dict[str, Any]]:
-
     markdown, structured = convert_document(path)
-    records = main_func(watcher_call=True)
+    #print(markdown, path, "hello", flush=True)
+    records = main_func(markdown, watcher_call=True)
     return records
 
 
