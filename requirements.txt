@@ -1,8 +1,10 @@
+watchdog
 requests
+haiku.rag
+pypdf
+ollama
 fastapi
 uvicorn
 httpx
-haiku.rag
 outlines 
-ollama
 jinja2

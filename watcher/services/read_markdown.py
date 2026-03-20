@@ -307,7 +307,7 @@ def load_ollama_models(ollama_url, preprocessing_model):
         print(f"Error connecting to Ollama at {ollama_url}: {e}")
         return False
 
-def main() -> None:
+def main_func(watcher_call=False) -> None:
     input_md = Path("docling_test/output.md")
     output_json = Path("commands_extracted.json")
     config = load_config()
@@ -329,6 +329,8 @@ def main() -> None:
     if load_ollama_models(ollama_url_default, pre_processing_model_default):
         client = ollama.Client(host=os.getenv("OLLAMA_URL", ollama_url_default))
         records = extract_records_from_markdown_file(input_md, model_name=os.getenv("PRE_PROCESSING_MODEL", pre_processing_model_default), client=client)
+        if watcher_call:
+            return records 
         write_records_json(records, output_json)
 
         print(f"Wrote {len(records)} records to {output_json}", flush=True)
@@ -337,4 +339,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main_func()

@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-httpx==0.28.1
-pydantic
-
-# haiku.rag python client
-haiku-rag
-haiku.rag-slim

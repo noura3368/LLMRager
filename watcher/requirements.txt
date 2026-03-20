@@ -1,5 +1,0 @@
-watchdog
-requests
-haiku.rag
-pypdf
-ollama

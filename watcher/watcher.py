@@ -13,7 +13,7 @@ from pypdf import PdfReader
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 from services.create_markdown import convert_document
-from services.read_markdown import extract_records_from_markdown
+from services.read_markdown import main_func
 from haiku.rag.client import HaikuRAG
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "/raw_docs"))
@@ -86,7 +86,7 @@ def is_instruction_manual(path: Path) -> bool:
 def preprocess_manual(path: Path) -> list[dict[str, Any]]:
 
     markdown, structured = convert_document(path)
-    records = extract_records_from_markdown(markdown)
+    records = main_func(watcher_call=True)
     return records
 
 

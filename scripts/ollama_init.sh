@@ -15,7 +15,7 @@ USE_DOCKER_ENV_FILE="$(get_config_value USE_DOCKER_ENV_FILE || true)"
 if [ "$USE_DOCKER_ENV_FILE" = "true" ]; then
     OLLAMA_URL="$(get_config_value OLLAMA_URL)"
 else
-    OLLAMA_URL="${OLLAMA_URL:-http://ollama:11434}"
+    OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 fi
 
 echo "Using OLLAMA_URL=$OLLAMA_URL"

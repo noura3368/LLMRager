@@ -13,7 +13,7 @@ fi
 
 python - <<'PY'
 import time, urllib.request
-url="http://docling-serve:5001/health"
+url="http://localhost:5001/health"
 for _ in range(180):
     try:
         urllib.request.urlopen(url, timeout=2).read()

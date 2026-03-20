@@ -1,5 +1,5 @@
 MODELS_CSV=llm_pipeline/services/file.csv
 PROMPTS=llm_pipeline/prompts/original
-OLLAMA_URL=http://ollama:11434
+OLLAMA_URL=http://localhost:11434
 PRE_PROCESSING_MODEL=qwen2.5:7b
 USE_DOCKER_ENV_FILE=true
