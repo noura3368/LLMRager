@@ -7,6 +7,7 @@ services:
       target: watcher_build
     working_dir: /app
     volumes:
+      - ./llm_pipeline/services/config.txt:/app/llm_pipeline/services/config.txt:ro
       - ./docling_models:/root/.cache/huggingface 
       - ./raw_docs:/raw_docs
       - ./docs_processed:/docs_processed
@@ -17,7 +18,7 @@ services:
       PYTHONPATH: /app
       CONFIG: /app/haiku.rag.yaml
       DB: /data/haiku.rag.lancedb
-      OLLAMA_URL: http://localhost:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
     depends_on:
       - docling-serve
     restart: unless-stopped
@@ -34,22 +35,12 @@ services:
     environment:
       PYTHONPATH: /app
       CONFIG: /app/haiku.rag.yaml
-      OLLAMA_URL: http://localhost:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       DB: /data/haiku.rag.lancedb
     depends_on:
       - docling-serve
       - watcher
     restart: unless-stopped
-
-  ollama-init:
-    image: curlimages/curl:8.5.0
-    network_mode: host
-    volumes:
-      - ./scripts/ollama_init.sh:/ollama_init.sh:ro
-    entrypoint: ["/bin/sh","/ollama_init.sh"]
-    environment:
-      OLLAMA_URL: http://localhost:11434
-    restart: "no"
 
   orchestrator:
     image: my-orchestrator-app:latest
@@ -63,13 +54,14 @@ services:
       PYTHONPATH: /app
       DB_PATH: /data/haiku.rag.lancedb
       CONFIG: /app/haiku.rag.yaml
-      OLLAMA_URL: http://localhost:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       HAIKU_EMBEDDING_MODEL: "nomic-embed-text:latest"
       HAIKU_EMBEDDING_VECTOR_DIM: "768"
     volumes:
       - ./data:/data
       - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
       - ./llm_pipeline/prompts:/app/llm_pipeline/prompts
+      - ./llm_pipeline/services/config.txt:/app/llm_pipeline/services/config.txt:ro
 
   docling-serve:
     image: ghcr.io/docling-project/docling-serve:latest

@@ -5,3 +5,4 @@ data/*
 !data/.gitkeep
 docs_processed/*
 !docs_processed/.gitkeep
+docling_models/*

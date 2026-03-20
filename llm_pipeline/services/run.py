@@ -4,7 +4,6 @@ from .structured_output import generate_with_timing
 import time, json
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
-from .config_utils import load_config
 # default model if no CSV provided in config.txt or CSV loading fails
 DEFAULT_MODEL = "devstral:24b"
 
@@ -142,42 +141,23 @@ def parse_results(response):
         return [] 
 
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
-    config = load_config()
-    print(config)
-    # maybe empty strings below 
-    default_ollama_url = "http://localhost:11434"
-    default_prompts = "prompts/original"
-    models_csv = None 
-    if config: # if config file exists and we want to use it 
-        if config.get("USE_DOCKER_ENV_FILE") and config.get("USE_DOCKER_ENV_FILE").lower() == "true":
-            if config.get("OLLAMA_URL"): # save all the values as environment varibles
-                os.environ["OLLAMA_URL"] = config["OLLAMA_URL"]
-            if config.get("PROMPTS"):
-                os.environ["PROMPTS"] = config["PROMPTS"]
-            if config.get("MODELS_CSV"): # no system environment variable for MODELS_CSV. use default value if models_csv is not set or file does not exist.
-                models_csv = config["MODELS_CSV"]
-        else: # if we are supposed to use system environment variables instead, save the values in config file as backup instead 
-            # set the defaults values from config in case system environment variables are not set. 
-            if config.get("OLLAMA_URL"):
-                default_ollama_url = config["OLLAMA_URL"]
-            # so if no prompts are inputted from system var or config, it will default to the original prompt in the prompts folder
-            if config.get("PROMPTS"):
-                default_prompts = config["PROMPTS"]
-            
-
+    #config = load_config()
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    MODELS_CSV = os.getenv("MODELS_CSV", "")
+    PROMPTS = os.getenv("PROMPTS", "/app/llm_pipeline/prompts/original")
     # Get available template, either modify or generate type. If no template found, exit the program.
     # original template exists in prompts/original 
     # user can introduce new templates by adding them to the prompts folder and specifying the type in the template name (e.g., modify or generate) and the folder path in config.txt. 
    
-    available_template = get_available_templates(os.getenv("PROMPTS", default_prompts), type)
+    available_template = get_available_templates(PROMPTS, type)
     if not available_template:
-        info(f"No templates found in {os.getenv("PROMPTS", default_prompts)}. Exiting.")
+        info(f"No templates found in {PROMPTS}. Exiting.")
         sys.exit(1)
     
     models = [DEFAULT_MODEL]
 
-    if models_csv: 
-        list_of_models = load_models_from_csv(models_csv)
+    if MODELS_CSV: 
+        list_of_models = load_models_from_csv(MODELS_CSV)
         if len(list_of_models) > 0:
             models = list_of_models
         print(f"Models to process {models}")
@@ -185,7 +165,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
    
     for model in models:
         # Uses whatever value is set as env variable OLLAMA_URL, or defaulted config file value. 
-        resp = requests.post(f'{os.getenv("OLLAMA_URL", default_ollama_url)}/api/pull', json={"name": model, "stream": False}, timeout=400)
+        resp = requests.post(f'{OLLAMA_URL}/api/pull', json={"name": model, "stream": False}, timeout=400)
         resp.raise_for_status()
         info(f"Processing model: {model}")
         timestamp = str(int(time.time() * 1000000000))

@@ -7,10 +7,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import os
 import ollama
-from llm_pipeline.services.config_utils import load_config
 import requests
 
-MODEL_NAME = "qwen2.5:7b"
 MAX_RETRIES = 2
 SLEEP_BETWEEN_CALLS = 0.2
 
@@ -224,7 +222,7 @@ def parse_llm_output(raw_text: str) -> Any:
     return json.loads(cleaned)
 
 
-def extract_records_from_chunk(client, chunk: str, model_name=MODEL_NAME) -> List[Dict[str, Any]]:
+def extract_records_from_chunk(client, chunk: str, model_name) -> List[Dict[str, Any]]:
     fallback_section_title = infer_section_title_from_chunk(chunk)
 
     for attempt in range(MAX_RETRIES + 1):
@@ -258,7 +256,7 @@ def extract_records_from_chunk(client, chunk: str, model_name=MODEL_NAME) -> Lis
 def extract_records_from_markdown(
     client,
     md: str,
-    model_name: str = MODEL_NAME,
+    model_name: str,
     sleep_between_calls: float = SLEEP_BETWEEN_CALLS,
 ) -> List[Dict[str, Any]]:
     md = html.unescape(md)
@@ -298,7 +296,7 @@ def write_records_json(records: List[Dict[str, Any]], output_path: str | Path) -
 
 def load_ollama_models(ollama_url, preprocessing_model):
     try:
-        resp = requests.post(f'{os.getenv("OLLAMA_URL", ollama_url)}/api/pull', json={"name": os.getenv("PRE_PROCESSING_MODEL", preprocessing_model), "stream": False}, timeout=400)
+        resp = requests.post(f'{ollama_url}/api/pull', json={"name": preprocessing_model, "stream": False}, timeout=400)
         resp.raise_for_status()
         print(f"Processing model: {preprocessing_model}")
         return True 
@@ -307,26 +305,12 @@ def load_ollama_models(ollama_url, preprocessing_model):
         return False
 
 def main_func(markdown_text, watcher_call=False) -> None:
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+    PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL", "qwen2.5:7b")
     output_json = Path("commands_extracted.json")
-    config = load_config()
-    pre_processing_model_default = MODEL_NAME
-    ollama_url_default = "http://localhost:11434"
-    if config:
-        if config.get("USE_DOCKER_ENV_FILE") and config.get("USE_DOCKER_ENV_FILE").lower() == "true":
-            if config.get("OLLAMA_URL"): # save all the values as environment varibles
-                os.environ["OLLAMA_URL"] = config["OLLAMA_URL"]
-            if config.get("PRE_PROCESSING_MODEL"):
-                os.environ["PRE_PROCESSING_MODEL"] = config["PRE_PROCESSING_MODEL"]
-        else:
-            # if not using config file, will load from system environment variable. make sure defaults are values in the env file if sys env fails. 
-            if config.get("OLLAMA_URL"): 
-                ollama_url_default = config["OLLAMA_URL"]
-            if config.get("PRE_PROCESSING_MODEL"):
-                os.environ["PRE_PROCESSING_MODEL"] = config["PRE_PROCESSING_MODEL"]
-
-    if load_ollama_models(ollama_url_default, pre_processing_model_default):
-        client = ollama.Client(host=os.getenv("OLLAMA_URL", ollama_url_default))
-        records = extract_records_from_markdown_file(markdown_text, model_name=os.getenv("PRE_PROCESSING_MODEL", pre_processing_model_default), client=client)
+    if load_ollama_models(OLLAMA_URL, PRE_PROCESSING_MODEL):
+        client = ollama.Client(host=OLLAMA_URL)
+        records = extract_records_from_markdown_file(markdown_text, model_name=PRE_PROCESSING_MODEL, client=client)
         if watcher_call:
             return records 
         write_records_json(records, output_json)
@@ -334,7 +318,3 @@ def main_func(markdown_text, watcher_call=False) -> None:
         print(f"Wrote {len(records)} records to {output_json}", flush=True)
     else:
         print("Failed to load models from Ollama. Exiting.", flush=True)
-
-
-#if __name__ == "__main__":
-#    main_func()

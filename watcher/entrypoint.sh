@@ -27,7 +27,7 @@ PY
 if [ "$#" -gt 0 ]; then
   exec "$@"
 else
-  exec python -u /app/watcher/watcher.py
+  exec /app/scripts/load_config_env.sh sh -c '/app/scripts/ollama_init.sh && exec python -u /app/watcher/watcher.py'
 fi
 #python /app/custom_ingest.py
 #exec haiku-rag --config "$CONFIG" serve --monitor --db "$DB"
