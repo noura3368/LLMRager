@@ -6,7 +6,7 @@ DB_PATH="${DB_PATH:-/data/haiku.rag.lanceDB_PATH}"
 
 if [ ! -d "$DB_PATH" ]; then
   echo "Initializing DB_PATH at $DB_PATH..."
-  haiku-rag --config "$CONFIG" init --DB_PATH "$DB_PATH"
+  haiku-rag --config "$CONFIG" init --db "$DB_PATH"
 else
   echo "DB_PATH already exists at $DB_PATH"
 fi

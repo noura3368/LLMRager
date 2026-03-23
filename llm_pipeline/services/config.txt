@@ -2,4 +2,4 @@ PRE_PROCESSING_MODEL=qwen2.5:7b
 OLLAMA_URL=http://localhost:11434
 PROMPTS=llm_pipeline/prompts/original
 MODELS_CSV=llm_pipeline/services/file.csv
-USE_DOCKER_ENV_FILE=true 
+USE_DOCKER_ENV_FILE=true
