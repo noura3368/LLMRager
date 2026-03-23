@@ -142,7 +142,7 @@ def parse_results(response):
 
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
     #config = load_config()
-    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
     MODELS_CSV = os.getenv("MODELS_CSV", "")
     PROMPTS = os.getenv("PROMPTS", "/app/llm_pipeline/prompts/original")
     # Get available template, either modify or generate type. If no template found, exit the program.

@@ -1,4 +1,4 @@
-OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
+OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
 echo "Waiting for Ollama at $OLLAMA_URL..."
 until curl -fsS "$OLLAMA_URL/api/tags" >/dev/null; do
     sleep 1

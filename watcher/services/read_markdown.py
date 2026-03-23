@@ -305,7 +305,7 @@ def load_ollama_models(ollama_url, preprocessing_model):
         return False
 
 def main_func(markdown_text, watcher_call=False) -> None:
-    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
     PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL", "qwen2.5:7b")
     output_json = Path("commands_extracted.json")
     if load_ollama_models(OLLAMA_URL, PRE_PROCESSING_MODEL):

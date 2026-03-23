@@ -18,7 +18,7 @@ from haiku.rag.client import HaikuRAG
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "/raw_docs"))
 PROCESSED_DIR = Path(os.getenv("PROCESSED_DIR", "/docs_processed"))
-DB_PATH = Path(os.getenv("DB", "/data/haiku.rag.lancedb"))
+DB_PATH = Path(os.getenv("DB_PATH", "/data/haiku.rag.lancedb"))
 STATE_PATH = Path(os.getenv("STATE_PATH", "/data/watcher_state.json"))
 
 SUPPORTED_EXTS = {".pdf", ".txt", ".md", ".json", ".html", ".csv"}

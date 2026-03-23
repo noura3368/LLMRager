@@ -2,13 +2,13 @@
 set -eu
 
 CONFIG="${CONFIG:-/app/haiku.rag.yaml}"
-DB="${DB:-/data/haiku.rag.lancedb}"
+DB_PATH="${DB_PATH:-/data/haiku.rag.lanceDB_PATH}"
 
-if [ ! -d "$DB" ]; then
-  echo "Initializing DB at $DB..."
-  haiku-rag --config "$CONFIG" init --db "$DB"
+if [ ! -d "$DB_PATH" ]; then
+  echo "Initializing DB_PATH at $DB_PATH..."
+  haiku-rag --config "$CONFIG" init --DB_PATH "$DB_PATH"
 else
-  echo "DB already exists at $DB"
+  echo "DB_PATH already exists at $DB_PATH"
 fi
 
 python - <<'PY'
@@ -27,7 +27,7 @@ PY
 if [ "$#" -gt 0 ]; then
   exec "$@"
 else
-  exec /app/scripts/load_config_env.sh sh -c '/app/scripts/ollama_init.sh && exec python -u /app/watcher/watcher.py'
+  exec python -u /app/scripts/load_config_env.py sh -c '/app/scripts/ollama_init.sh && exec python -u /app/watcher/watcher.py'
 fi
 #python /app/custom_ingest.py
-#exec haiku-rag --config "$CONFIG" serve --monitor --db "$DB"
+#exec haiku-rag --config "$CONFIG" serve --monitor --DB_PATH "$DB_PATH"
