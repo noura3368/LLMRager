@@ -212,7 +212,7 @@ def call_llm(client, chunk: str, model_name: str) -> str:
         system=SYSTEM_PROMPT,
         prompt=USER_PROMPT_TEMPLATE.format(chunk=chunk),
         format="json",
-        options={"temperature": 0},
+        options={"temperature": 0}, # minimizing randomness 
     )
     return response["response"]
 

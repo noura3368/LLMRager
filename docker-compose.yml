@@ -33,6 +33,7 @@ services:
       - ./docs_processed:/docs_processed
       - ./data:/data
       - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
+    network_mode: host
     environment:
       DOCLING_SERVE_URL: http://docling-serve:5001
       PYTHONPATH: /app
