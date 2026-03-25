@@ -1,4 +1,11 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11435:11434"
+    gpus: all
+    restart: unless-stopped
+
   watcher:
     image: my-haiku-app:latest
     build:
@@ -7,22 +14,27 @@ services:
       target: watcher
     working_dir: /app
     volumes:
-      - ./llm_pipeline/services/config.txt:/app/llm_pipeline/services/config.txt:ro
-      - ./docling_models:/root/.cache/huggingface 
+      - ./.env:/app/.env:ro
+      - ./docling_models:/root/.cache/huggingface
       - ./raw_docs:/raw_docs
       - ./docs_processed:/docs_processed
       - ./data:/data
-      - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
-    network_mode: host
+      #- ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
     environment:
       PYTHONPATH: /app
       CONFIG: /app/haiku.rag.yaml
       DB_PATH: /data/haiku.rag.lancedb
-      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_URL: ${OLLAMA_URL}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      MODELS_CSV: ${MODELS_CSV}
+      PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
+      PROMPTS: ${PROMPTS}
+      DOCLING_SERVE_URL: ${DOCLING_SERVE_URL}
     #extra_hosts:
     #  - "host.docker.internal:host-gateway"
     depends_on:
       - docling-serve
+      - ollama
     restart: unless-stopped
 
   haiku-monitor:
@@ -32,13 +44,16 @@ services:
     volumes:
       - ./docs_processed:/docs_processed
       - ./data:/data
-      - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
-    network_mode: host
+      - ./.env:/app/.env:ro
+      #- ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
     environment:
       DOCLING_SERVE_URL: http://docling-serve:5001
       PYTHONPATH: /app
       CONFIG: /app/haiku.rag.yaml
       DB_PATH: /data/haiku.rag.lancedb
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_URL: ${OLLAMA_URL}
+    entrypoint: ["/bin/sh","./scripts/ollama_init.sh"]
     depends_on:
       - docling-serve
       - watcher
@@ -51,12 +66,16 @@ services:
       dockerfile: Dockerfile
       target: orchestrator
     working_dir: /app
-    network_mode: host
     environment:
       PYTHONPATH: /app
       DB_PATH: /data/haiku.rag.lancedb
       CONFIG: /app/haiku.rag.yaml
-      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_URL: ${OLLAMA_URL}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      MODELS_CSV: ${MODELS_CSV}
+      PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
+      PROMPTS: ${PROMPTS}
+      DOCLING_SERVE_URL: ${DOCLING_SERVE_URL}
       HAIKU_EMBEDDING_MODEL: "nomic-embed-text:latest"
       HAIKU_EMBEDDING_VECTOR_DIM: "768"
     ports:
@@ -65,14 +84,19 @@ services:
     #  - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/data
-      - ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
+      - ./.env:/app/.env:ro
+      #- ./haiku.rag.yaml:/app/haiku.rag.yaml:ro
       - ./llm_pipeline/prompts:/app/llm_pipeline/prompts
-      - ./llm_pipeline/services/config.txt:/app/llm_pipeline/services/config.txt:ro
+    depends_on:
+      - ollama
 
   docling-serve:
     image: ghcr.io/docling-project/docling-serve:latest
     restart: unless-stopped
     ports:
       - "5001:5001"
-    volumes:
-      - /data2/nkhajehn/docling_tmp:/tmp
+    #volumes:
+    #  - /data2/nkhajehn/docling_tmp:/tmp
+
+volumes:
+  ollama:

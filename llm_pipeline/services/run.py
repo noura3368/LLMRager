@@ -4,8 +4,6 @@ from .structured_output import generate_with_timing
 import time, json
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
-# default model if no CSV provided in config.txt or CSV loading fails
-DEFAULT_MODEL = "devstral:24b"
 
 def info(message):
     """Print info message with timestamp"""
@@ -142,25 +140,26 @@ def parse_results(response):
 
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
     #config = load_config()
-    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
-    MODELS_CSV = os.getenv("MODELS_CSV", "")
-    PROMPTS = os.getenv("PROMPTS", "/app/llm_pipeline/prompts/original")
-    # Get available template, either modify or generate type. If no template found, exit the program.
-    # original template exists in prompts/original 
-    # user can introduce new templates by adding them to the prompts folder and specifying the type in the template name (e.g., modify or generate) and the folder path in config.txt. 
-   
+    OLLAMA_URL = os.getenv("OLLAMA_URL")
+    MODELS_CSV = os.getenv("MODELS_CSV")
+    PROMPTS = os.getenv("PROMPTS")
+    print("OLLAMA_URL", OLLAMA_URL)
+    print("MODELS_CSV", MODELS_CSV)
+    print("PROMPTS", PROMPTS)
     available_template = get_available_templates(PROMPTS, type)
     if not available_template:
         info(f"No templates found in {PROMPTS}. Exiting.")
         sys.exit(1)
     
-    models = [DEFAULT_MODEL]
-
-    if MODELS_CSV: 
+    models = []
+    if Path(MODELS_CSV).exists(): 
         list_of_models = load_models_from_csv(MODELS_CSV)
         if len(list_of_models) > 0:
             models = list_of_models
         print(f"Models to process {models}")
+    else:
+        models = [MODELS_CSV] # meaning default model was used or only model name was passed in. not a path.
+
     list_of_commands = [] # final list of commands from all the models 
    
     for model in models:
@@ -178,7 +177,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
                     
         # Run template and generate in-process
         output_path = Path(f"out/{model}_{timestamp}.json")
-        success = render_template_and_generate(available_template, model, params, output_path, os.getenv("OLLAMA_URL", default_ollama_url), type)
+        success = render_template_and_generate(available_template, model, params, output_path, OLLAMA_URL, type)
         
         if not success:
             info(f"Model returned unstructured response, not included in output: {model}")

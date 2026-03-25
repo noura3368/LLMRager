@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Any
-import json
+import json, requests, os
 from docling.document_converter import DocumentConverter
 
 
@@ -14,11 +14,17 @@ def convert_document(path: str | Path) -> tuple[str, dict[str, Any]]:
       2. full structured JSON as a Python dict
     """
     path = Path(path)
-    result = _converter.convert(str(path))
-    doc = result.document
+    docling_url = os.environ["DOCLING_SERVE_URL"].rstrip("/")
 
-    markdown = doc.export_to_markdown()
-    structured = doc.model_dump()
+    with open(path, "rb") as f:
+        files = {"file": (path.name, f)}
+        resp = requests.post(f"{docling_url}/convert", files=files, timeout=300)
+
+    resp.raise_for_status()
+    data = resp.json()
+
+    markdown = data.get("markdown", "")
+    structured = data.get("document", {})
 
     return markdown, structured
 

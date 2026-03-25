@@ -81,8 +81,6 @@ search:
   vector_index_metric: cosine
   vector_refine_factor: 30
 providers:
-  ollama:
-    base_url: http://localhost:11434
   docling_serve:
-    base_url: http://localhost:5001
+    base_url: http://docling-serve:5001
     api_key: ''

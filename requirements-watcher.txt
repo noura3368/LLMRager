@@ -1,5 +1,6 @@
 watchdog
 requests
-haiku.rag
+haiku.rag-slim
 pypdf
 ollama
+docling

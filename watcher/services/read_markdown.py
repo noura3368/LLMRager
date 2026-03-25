@@ -305,16 +305,15 @@ def load_ollama_models(ollama_url, preprocessing_model):
         return False
 
 def main_func(markdown_text, watcher_call=False) -> None:
-    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
-    PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL", "qwen2.5:7b")
-    output_json = Path("commands_extracted.json")
+    OLLAMA_URL = os.getenv("OLLAMA_URL")
+    PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL")
+    print("OLLAMA_URL", OLLAMA_URL)
+    print("PRE_PROCESSING_MODEL", PRE_PROCESSING_MODEL)
     if load_ollama_models(OLLAMA_URL, PRE_PROCESSING_MODEL):
         client = ollama.Client(host=OLLAMA_URL)
         records = extract_records_from_markdown_file(markdown_text, model_name=PRE_PROCESSING_MODEL, client=client)
         if watcher_call:
             return records 
-        write_records_json(records, output_json)
-
-        print(f"Wrote {len(records)} records to {output_json}", flush=True)
+        #write_records_json(records, output_json)
     else:
         print("Failed to load models from Ollama. Exiting.", flush=True)

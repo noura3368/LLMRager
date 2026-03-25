@@ -1,8 +1,9 @@
 #!/bin/sh
 set -eu
+eval "$(python /app/scripts/load_config_env.py)"
 
 CONFIG="${CONFIG:-/app/haiku.rag.yaml}"
-DB_PATH="${DB_PATH:-/data/haiku.rag.lanceDB_PATH}"
+DB_PATH="${DB_PATH:-/data/haiku.rag.lance}"
 
 if [ ! -d "$DB_PATH" ]; then
   echo "Initializing DB_PATH at $DB_PATH..."
@@ -12,8 +13,8 @@ else
 fi
 
 python - <<'PY'
-import time, urllib.request
-url="http://localhost:5001/health"
+import os, time, urllib.request
+url = os.environ["DOCLING_SERVE_URL"] + "/health"
 for _ in range(180):
     try:
         urllib.request.urlopen(url, timeout=2).read()
@@ -27,7 +28,6 @@ PY
 if [ "$#" -gt 0 ]; then
   exec "$@"
 else
-  exec python -u /app/scripts/load_config_env.py sh -c '/app/scripts/ollama_init.sh && exec python -u /app/watcher/watcher.py'
+  /app/scripts/ollama_init.sh
+  exec python -u /app/watcher/watcher.py
 fi
-#python /app/custom_ingest.py
-#exec haiku-rag --config "$CONFIG" serve --monitor --DB_PATH "$DB_PATH"
