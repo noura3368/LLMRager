@@ -294,23 +294,23 @@ def write_records_json(records: List[Dict[str, Any]], output_path: str | Path) -
     return output_path
 
 
-def load_ollama_models(ollama_url, preprocessing_model):
+def load_ollama_models(OLLAMA_BASE_URL, preprocessing_model):
     try:
-        resp = requests.post(f'{ollama_url}/api/pull', json={"name": preprocessing_model, "stream": False}, timeout=400)
+        resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": preprocessing_model, "stream": False}, timeout=400)
         resp.raise_for_status()
         print(f"Processing model: {preprocessing_model}")
         return True 
     except Exception as e:
-        print(f"Error connecting to Ollama at {ollama_url}: {e}")
+        print(f"Error connecting to Ollama at {OLLAMA_BASE_URL}: {e}")
         return False
 
 def main_func(markdown_text, watcher_call=False) -> None:
-    OLLAMA_URL = os.getenv("OLLAMA_URL")
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL")
-    print("OLLAMA_URL", OLLAMA_URL)
+    print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
     print("PRE_PROCESSING_MODEL", PRE_PROCESSING_MODEL)
-    if load_ollama_models(OLLAMA_URL, PRE_PROCESSING_MODEL):
-        client = ollama.Client(host=OLLAMA_URL)
+    if load_ollama_models(OLLAMA_BASE_URL, PRE_PROCESSING_MODEL):
+        client = ollama.Client(host=OLLAMA_BASE_URL)
         records = extract_records_from_markdown_file(markdown_text, model_name=PRE_PROCESSING_MODEL, client=client)
         if watcher_call:
             return records 

@@ -7,8 +7,9 @@ import shlex
 DEFAULT_MODEL = "qwen2.5:32b"
 DEFAULT_PREPROCESSING_MODEL = "qwen2.5:7b"
 def main():
+    
     env_file = dotenv_values(".env") # Load .env file if it exists
-    use_env_file = env_file.get("USE_ENV_FILE", "true").lower() == "true"
+    use_env_file = env_file.get("USE_ENV_FILE", "false").lower() == "true"
 
     print(use_env_file, 'use env', file=sys.stderr)
     def get_config(name: str, default: str | None = None) -> str | None:
@@ -18,14 +19,15 @@ def main():
         return os.environ.get(name, env_file.get(name, default))
 
     print(os.environ.get("MODELS_CSV"), 'model env', file=sys.stderr)
-    OLLAMA_URL = get_config("OLLAMA_URL", None)
+    OLLAMA_BASE_URL = get_config("OLLAMA_BASE_URL", None)
     PRE_PROCESSING_MODEL = get_config("PRE_PROCESSING_MODEL", DEFAULT_PREPROCESSING_MODEL)
     PROMPTS = get_config("PROMPTS", None)
     MODELS_CSV = get_config("MODELS_CSV", DEFAULT_MODEL)
     DOCLING_SERVE_URL = get_config("DOCLING_SERVE_URL", None)
-
-    if OLLAMA_URL is None:
-        print("Error: OLLAMA_URL is not set in environment variables or .env file.", file=sys.stderr)
+    print("preprocessing model", PRE_PROCESSING_MODEL, file=sys.stderr)
+    print(get_config("PRE_PROCESSING_MODEL"), file=sys.stderr)
+    if OLLAMA_BASE_URL is None:
+        print("Error: OLLAMA_BASE_URL is not set in environment variables or .env file.", file=sys.stderr)
         return 1
     if get_config("PRE_PROCESSING_MODEL") is None:
         print(f"Warning: PRE_PROCESSING_MODEL is not set in environment variables or .env file. Setting preprocessing model to default {DEFAULT_PREPROCESSING_MODEL}.", file=sys.stderr)
@@ -39,7 +41,7 @@ def main():
         return 1
     
     exports = {
-        "OLLAMA_URL": OLLAMA_URL,
+        "OLLAMA_BASE_URL": OLLAMA_BASE_URL,
         "PRE_PROCESSING_MODEL": PRE_PROCESSING_MODEL,
         "PROMPTS": PROMPTS,
         "MODELS_CSV": MODELS_CSV,

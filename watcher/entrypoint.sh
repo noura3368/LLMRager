@@ -28,6 +28,5 @@ PY
 if [ "$#" -gt 0 ]; then
   exec "$@"
 else
-  /app/scripts/ollama_init.sh
   exec python -u /app/watcher/watcher.py
 fi

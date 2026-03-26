@@ -3,7 +3,7 @@ FROM python:3.12-slim AS base
 RUN apt-get update && apt-get install -y gcc curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY haiku.rag.yaml /app/
-COPY .env /app/.env
+#COPY .env /app/.env
 COPY ./scripts /app/scripts
 RUN chmod +x /app/scripts/*.sh
 

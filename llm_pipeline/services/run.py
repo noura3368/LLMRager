@@ -81,7 +81,7 @@ def render_template_and_generate(template_path, model, params, output_path, defa
         structured_response, started_at, ended_at, elapsed_ms = generate_with_timing(
             model_name=model,
             prompt=composed_prompt,
-            ollama_host=os.getenv("OLLAMA_URL", default_ollama_host),
+            ollama_host=os.getenv("OLLAMA_BASE_URL", default_ollama_host),
             timeout=timeout
         )
         # Convert to the format expected by the original system
@@ -140,10 +140,10 @@ def parse_results(response):
 
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
     #config = load_config()
-    OLLAMA_URL = os.getenv("OLLAMA_URL")
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     MODELS_CSV = os.getenv("MODELS_CSV")
     PROMPTS = os.getenv("PROMPTS")
-    print("OLLAMA_URL", OLLAMA_URL)
+    print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
     print("MODELS_CSV", MODELS_CSV)
     print("PROMPTS", PROMPTS)
     available_template = get_available_templates(PROMPTS, type)
@@ -163,8 +163,8 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
     list_of_commands = [] # final list of commands from all the models 
    
     for model in models:
-        # Uses whatever value is set as env variable OLLAMA_URL, or defaulted config file value. 
-        resp = requests.post(f'{OLLAMA_URL}/api/pull', json={"name": model, "stream": False}, timeout=400)
+        # Uses whatever value is set as env variable OLLAMA_BASE_URL, or defaulted config file value. 
+        resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": model, "stream": False}, timeout=400)
         resp.raise_for_status()
         info(f"Processing model: {model}")
         timestamp = str(int(time.time() * 1000000000))
@@ -177,7 +177,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
                     
         # Run template and generate in-process
         output_path = Path(f"out/{model}_{timestamp}.json")
-        success = render_template_and_generate(available_template, model, params, output_path, OLLAMA_URL, type)
+        success = render_template_and_generate(available_template, model, params, output_path, OLLAMA_BASE_URL, type)
         
         if not success:
             info(f"Model returned unstructured response, not included in output: {model}")
