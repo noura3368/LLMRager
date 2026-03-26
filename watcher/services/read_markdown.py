@@ -296,7 +296,7 @@ def write_records_json(records: List[Dict[str, Any]], output_path: str | Path) -
 
 def load_ollama_models(OLLAMA_BASE_URL, preprocessing_model):
     try:
-        resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": preprocessing_model, "stream": False}, timeout=400)
+        resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": preprocessing_model, "stream": False}, timeout=600)
         resp.raise_for_status()
         print(f"Processing model: {preprocessing_model}")
         return True 
