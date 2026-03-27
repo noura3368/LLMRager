@@ -142,7 +142,8 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
     #config = load_config()
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     MODELS_CSV = os.getenv("MODELS_CSV")
-    PROMPTS = os.getenv("PROMPTS")
+    PROMPTS = "llm_pipeline/prompts/original"
+    #PROMPTS = os.getenv("PROMPTS")
     print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
     print("MODELS_CSV", MODELS_CSV)
     print("PROMPTS", PROMPTS)
@@ -164,7 +165,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
    
     for model in models:
         # Uses whatever value is set as env variable OLLAMA_BASE_URL, or defaulted config file value. 
-        resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": model, "stream": False}, timeout=400)
+        resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": model, "stream": False}, timeout=600)
         resp.raise_for_status()
         info(f"Processing model: {model}")
         timestamp = str(int(time.time() * 1000000000))

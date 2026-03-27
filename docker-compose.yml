@@ -1,24 +1,20 @@
 services:
   ollama:
     image: ollama/ollama:latest
+    environment:
+      OLLAMA_DEBUG: "1"
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      MODELS_CSV: ${MODELS_CSV}
+      PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
     ports:
       - "11435:11434"
     gpus: all
+    entrypoint: ["/bin/sh","/scripts/ollama_entrypoint.sh"]
     volumes:
+    - ./scripts:/scripts:ro # can make a custom image instead
     - /data2/nkhajehn/ollama:/root/.ollama
     restart: unless-stopped
-  
-  ollama-init:
-    image: curlimages/curl:8.5.0
-    depends_on:
-      - ollama
-    entrypoint: ["/bin/sh","/scripts/ollama_init.sh"]
-    environment:
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
-    volumes:
-      - ./scripts:/scripts:ro
-    restart: "no"
-  
+
   watcher:
     image: my-haiku-app:latest
     build:
@@ -40,7 +36,6 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       MODELS_CSV: ${MODELS_CSV}
       PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
-      PROMPTS: ${PROMPTS}
       DOCLING_SERVE_URL: ${DOCLING_SERVE_URL}
     #extra_hosts:
     #  - "host.docker.internal:host-gateway"
@@ -77,13 +72,13 @@ services:
       target: orchestrator
     working_dir: /app
     environment:
+      OLLAMA_DEBUG: "1"
       PYTHONPATH: /app
       DB_PATH: /data/haiku.rag.lancedb
       CONFIG: /app/haiku.rag.yaml
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       MODELS_CSV: ${MODELS_CSV}
       PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
-      PROMPTS: ${PROMPTS}
       DOCLING_SERVE_URL: ${DOCLING_SERVE_URL}
       HAIKU_EMBEDDING_MODEL: "nomic-embed-text:latest"
       HAIKU_EMBEDDING_VECTOR_DIM: "768"

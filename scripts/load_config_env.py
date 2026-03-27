@@ -21,7 +21,7 @@ def main():
     print(os.environ.get("MODELS_CSV"), 'model env', file=sys.stderr)
     OLLAMA_BASE_URL = get_config("OLLAMA_BASE_URL", None)
     PRE_PROCESSING_MODEL = get_config("PRE_PROCESSING_MODEL", DEFAULT_PREPROCESSING_MODEL)
-    PROMPTS = get_config("PROMPTS", None)
+    #PROMPTS = get_config("PROMPTS", None)
     MODELS_CSV = get_config("MODELS_CSV", DEFAULT_MODEL)
     DOCLING_SERVE_URL = get_config("DOCLING_SERVE_URL", None)
     print("preprocessing model", PRE_PROCESSING_MODEL, file=sys.stderr)
@@ -33,8 +33,8 @@ def main():
         print(f"Warning: PRE_PROCESSING_MODEL is not set in environment variables or .env file. Setting preprocessing model to default {DEFAULT_PREPROCESSING_MODEL}.", file=sys.stderr)
     if get_config("MODELS_CSV") is None:
         print(f"Warning: MODELS_CSV is not set in environment variables or .env file. Setting MODELS_CSV to default {DEFAULT_MODEL}.", file=sys.stderr)
-    if PROMPTS is None:
-        print("Error: PROMPTS is not set in environment variables or .env file.", file=sys.stderr)
+    #if PROMPTS is None:
+    #    print("Error: PROMPTS is not set in environment variables or .env file.", file=sys.stderr)
         return 1 
     if DOCLING_SERVE_URL is None:
         print("Error: DOCLING_SERVE_URL is not set in environment variables or .env file.", file=sys.stderr)
@@ -43,7 +43,7 @@ def main():
     exports = {
         "OLLAMA_BASE_URL": OLLAMA_BASE_URL,
         "PRE_PROCESSING_MODEL": PRE_PROCESSING_MODEL,
-        "PROMPTS": PROMPTS,
+        #"PROMPTS": PROMPTS,
         "MODELS_CSV": MODELS_CSV,
         "DOCLING_SERVE_URL": DOCLING_SERVE_URL,
     }
