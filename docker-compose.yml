@@ -4,12 +4,17 @@ services:
     environment:
       OLLAMA_DEBUG: "1"
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
-      MODELS_CSV: ${MODELS_CSV}
+      MODELS: ${MODELS}
       PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
     ports:
       - "11435:11434"
     gpus: all
-    entrypoint: ["/bin/sh","/scripts/ollama_entrypoint.sh"]
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        . /scripts/load_ollama_env.sh
+        exec /scripts/ollama_init.sh
     volumes:
     - ./scripts:/scripts:ro # can make a custom image instead
     - /data2/nkhajehn/ollama:/root/.ollama
@@ -34,7 +39,7 @@ services:
       CONFIG: /app/haiku.rag.yaml
       DB_PATH: /data/haiku.rag.lancedb
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
-      MODELS_CSV: ${MODELS_CSV}
+      MODELS: ${MODELS}
       PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
       DOCLING_SERVE_URL: ${DOCLING_SERVE_URL}
     #extra_hosts:
@@ -77,7 +82,7 @@ services:
       DB_PATH: /data/haiku.rag.lancedb
       CONFIG: /app/haiku.rag.yaml
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
-      MODELS_CSV: ${MODELS_CSV}
+      MODELS: ${MODELS}
       PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
       DOCLING_SERVE_URL: ${DOCLING_SERVE_URL}
       HAIKU_EMBEDDING_MODEL: "nomic-embed-text:latest"

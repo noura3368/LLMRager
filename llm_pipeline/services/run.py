@@ -141,32 +141,23 @@ def parse_results(response):
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
     #config = load_config()
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
-    MODELS_CSV = os.getenv("MODELS_CSV")
+    MODELS = os.getenv("MODELS").split(',')
     PROMPTS = "llm_pipeline/prompts/original"
     #PROMPTS = os.getenv("PROMPTS")
     print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
-    print("MODELS_CSV", MODELS_CSV)
+    print("MODELS", MODELS)
     print("PROMPTS", PROMPTS)
     available_template = get_available_templates(PROMPTS, type)
     if not available_template:
         info(f"No templates found in {PROMPTS}. Exiting.")
         sys.exit(1)
-    
-    models = []
-    if Path(MODELS_CSV).exists(): 
-        list_of_models = load_models_from_csv(MODELS_CSV)
-        if len(list_of_models) > 0:
-            models = list_of_models
-        print(f"Models to process {models}")
-    else:
-        models = [MODELS_CSV] # meaning default model was used or only model name was passed in. not a path.
 
     list_of_commands = [] # final list of commands from all the models 
    
-    for model in models:
+    for model in MODELS:
         # Uses whatever value is set as env variable OLLAMA_BASE_URL, or defaulted config file value. 
-        resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": model, "stream": False}, timeout=600)
-        resp.raise_for_status()
+        #resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": model, "stream": False}, timeout=600)
+        #resp.raise_for_status()
         info(f"Processing model: {model}")
         timestamp = str(int(time.time() * 1000000000))
         params = {

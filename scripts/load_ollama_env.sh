@@ -27,20 +27,20 @@ get_dotenv_value() {
 USE_ENV_FILE_VALUE=$(get_dotenv_value "USE_ENV_FILE" "$ENV_FILE" || true)
 USE_ENV_FILE=$(printf '%s' "${USE_ENV_FILE_VALUE:-false}" | tr '[:upper:]' '[:lower:]')
 
-DOTENV_MODELS_CSV=$(get_dotenv_value "MODELS_CSV" "$ENV_FILE" || true)
+DOTENV_MODELS=$(get_dotenv_value "MODELS" "$ENV_FILE" || true)
 DOTENV_PRE_PROCESSING_MODEL=$(get_dotenv_value "PRE_PROCESSING_MODEL" "$ENV_FILE" || true)
 
 if [ "$USE_ENV_FILE" = "true" ]; then
-    MODELS_CSV="${DOTENV_MODELS_CSV:-${MODELS_CSV:-$DEFAULT_MODEL}}"
+    MODELS="${DOTENV_MODELS:-${MODELS:-$DEFAULT_MODEL}}"
     PRE_PROCESSING_MODEL="${DOTENV_PRE_PROCESSING_MODEL:-${PRE_PROCESSING_MODEL:-$DEFAULT_PREPROCESSING_MODEL}}"
 else
-    MODELS_CSV="${MODELS_CSV:-${DOTENV_MODELS_CSV:-$DEFAULT_MODEL}}"
+    MODELS="${MODELS:-${DOTENV_MODELS:-$DEFAULT_MODEL}}"
     PRE_PROCESSING_MODEL="${PRE_PROCESSING_MODEL:-${DOTENV_PRE_PROCESSING_MODEL:-$DEFAULT_PREPROCESSING_MODEL}}"
 fi
 
-if [ -z "${MODELS_CSV:-}" ]; then
-    echo "Warning: MODELS_CSV is empty. Setting default $DEFAULT_MODEL." >&2
-    MODELS_CSV="$DEFAULT_MODEL"
+if [ -z "${MODELS:-}" ]; then
+    echo "Warning: MODELS is empty. Setting default $DEFAULT_MODEL." >&2
+    MODELS="$DEFAULT_MODEL"
 fi
 
 if [ -z "${PRE_PROCESSING_MODEL:-}" ]; then
@@ -48,8 +48,8 @@ if [ -z "${PRE_PROCESSING_MODEL:-}" ]; then
     PRE_PROCESSING_MODEL="$DEFAULT_PREPROCESSING_MODEL"
 fi
 
-export MODELS_CSV
+export MODELS
 export PRE_PROCESSING_MODEL
 
-echo "MODELS_CSV=$MODELS_CSV" >&2
+echo "MODELS=$MODELS" >&2
 echo "PRE_PROCESSING_MODEL=$PRE_PROCESSING_MODEL" >&2

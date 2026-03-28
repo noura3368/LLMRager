@@ -1,31 +1,56 @@
 from pathlib import Path
 from typing import Any
-import json, requests, os
-from docling.document_converter import DocumentConverter
-
-
-_converter = DocumentConverter()
+import json
+import mimetypes
+import os
+import requests
 
 
 def convert_document(path: str | Path) -> tuple[str, dict[str, Any]]:
-    """
-    Convert a document with Docling and return:
-      1. markdown export
-      2. full structured JSON as a Python dict
-    """
     path = Path(path)
     docling_url = os.environ["DOCLING_SERVE_URL"].rstrip("/")
+    mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
 
     with open(path, "rb") as f:
-        files = {"file": (path.name, f)}
-        resp = requests.post(f"{docling_url}/convert", files=files, timeout=300)
+        files = {
+            "files": (path.name, f, mime)
+        }
+        form_data = {
+            "to_formats": "md",
+            "return_as_file": "false",
+            "abort_on_error": "false",
+        }
 
+        resp = requests.post(
+            f"{docling_url}/v1/convert/file",
+            files=files,
+            data=form_data,
+            timeout=300,
+        )
+
+    if not resp.ok:
+        raise RuntimeError(
+            f"Docling failed: status={resp.status_code}, url={resp.url}, body={resp.text[:2000]}"
+        )
     resp.raise_for_status()
-    data = resp.json()
+    print("status code:", resp.status_code, flush=True)
+    print("raw resp text:", resp.text[:2000], flush=True)
+    payload = resp.json()
+    print("Docling payload keys:", list(payload.keys()), flush=True)
 
-    markdown = data.get("markdown", "")
-    structured = data.get("document", {})
 
+    document = payload.get("document", {}) or {}
+    markdown = document.get("md_content", "") or ""
+    structured = document.get("json_content", {}) or document
+
+    print("payload keys:", list(payload.keys()), flush=True)
+    print("document keys:", list(document.keys()), flush=True)
+    print("status:", payload.get("status"), flush=True)
+    print("errors:", payload.get("errors"), flush=True)
+    print("md len:", len(markdown), flush=True)
+    print("md preview:", repr(markdown[:500]), flush=True)
+    print("text len:", len(document.get("text_content", "") or ""), flush=True)
+    print("json_content type:", type(document.get("json_content")).__name__, flush=True)
     return markdown, structured
 
 

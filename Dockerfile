@@ -17,8 +17,8 @@ COPY requirements-watcher.txt .
 RUN pip install --no-cache-dir -r requirements-watcher.txt  
 COPY ./watcher /app/watcher
 COPY ./llm_pipeline /app/llm_pipeline
-RUN chmod +x /app/watcher/entrypoint.sh
-ENTRYPOINT ["/app/watcher/entrypoint.sh"]
+#RUN chmod +x /app/watcher/entrypoint.sh
+ENTRYPOINT ["/app/scripts/entrypoint_watcher.sh"]
 
 # --- STAGE 3: Orchestrator (The "Slim" Querier) ---
 FROM base AS orchestrator
@@ -27,5 +27,5 @@ COPY requirements-orchestrator.txt .
 RUN pip install --no-cache-dir -r requirements-orchestrator.txt  
 COPY ./llm_pipeline /app/llm_pipeline
 # Use the script to launch the API
-RUN chmod +x /app/llm_pipeline/services/*.sh
-CMD ["/app/llm_pipeline/services/orchestrator_entrypoint.sh"]
+#RUN chmod +x /app/llm_pipeline/services/*.sh
+CMD ["/app/scripts/orchestrator_entrypoint.sh"]
