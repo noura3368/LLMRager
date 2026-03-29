@@ -18,6 +18,7 @@ services:
     volumes:
     - ./scripts:/scripts:ro # can make a custom image instead
     - /data2/nkhajehn/ollama:/root/.ollama
+    - ./.env:/app/.env:ro
     restart: unless-stopped
 
   watcher:
