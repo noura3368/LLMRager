@@ -4,6 +4,13 @@ from .structured_output import generate_with_timing
 import time, json
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+import logging
+import random
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 
 def info(message):
     """Print info message with timestamp"""
@@ -143,7 +150,6 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     MODELS = os.getenv("MODELS").split(',')
     PROMPTS = "llm_pipeline/prompts/original"
-    #PROMPTS = os.getenv("PROMPTS")
     print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
     print("MODELS", MODELS)
     print("PROMPTS", PROMPTS)
@@ -178,6 +184,13 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
             parsed_results = parse_results(success)
             #print(f"Extracted commands from model {model}: {parsed_results}, total commands so far: {list_of_commands}")
             list_of_commands.extend(parsed_results)
+    if len(list_of_commands) < number_of_commands:
+        logging.warning("Generated fewer commands than requested. Generated: %d, Requested: %d", len(list_of_commands), number_of_commands)
+        return list_of_commands
+    elif len(list_of_commands) > number_of_commands:
+        logging.warning("Generated more commands than requested. Generated: %d, Requested: %d. Truncating output.", len(list_of_commands), number_of_commands)
+        return random.sample(list_of_commands, number_of_commands)
+    logging.info("Successfully generated the requested number of commands: %d", number_of_commands)
     return list_of_commands
         
             
