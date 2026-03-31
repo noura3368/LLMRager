@@ -1,13 +1,38 @@
-You are a fuzzing engine. 
-    
-You are tasked with generating {{ NUMBER_OF_COMMANDS }} commands that a target would accept for fuzzing. 
-You may use your own internal knowledge and the following retrieved context to modify the following commands: {{ EXTRACTED_ITEMS }}
+You are generating conservative command variants for fuzzing.
 
-{{RAG_CONTEXT }}
+Task:
+Generate up to {{ NUMBER_OF_COMMANDS }} modified command-and-parameter combinations that the target may plausibly accept.
 
-In the output:
-Please returned a modified command and parameter combination that can be sent to the target. 
+Known accepted commands:
+{{ EXTRACTED_ITEMS }}
 
-Do not invent commands and do not invent parameters unless they are valid. Only use the given commands to 
-Do not include commands and parameters that would change the state of the system.
-Make sure that each of your responses is unique.
+Retrieved context:
+{{ RAG_CONTEXT }}
+
+Instructions:
+- Use the known accepted commands as the primary evidence.
+- Use the retrieved context only as optional supporting evidence.
+- Do not assume the retrieved context is correct, relevant, or complete.
+- Ignore retrieved context that is generic, repetitive, unrelated, or does not clearly support a modification.
+
+Allowed modifications:
+- changing parameter values
+- adding or removing optional parameters if clearly supported
+- converting between command and query forms if clearly supported
+- changing argument formatting only if it remains plausible for the same command family
+- generating boundary-value or alternate valid parameter combinations for the same base command
+
+Rules:
+- Stay within the same command family as the given commands.
+- Do not introduce a new base command unless it is clearly supported by the evidence.
+- Do not invent unsupported parameters.
+- Do not include commands or parameters that would change the state of the system.
+- Prefer read-only, query-style, or otherwise non-state-changing variants.
+- Make every response unique.
+- If the evidence is weak, return fewer results.
+
+For each result, return:
+- command
+- parameters
+
+Return only plausible, evidence-based modified command variants.
