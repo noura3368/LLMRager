@@ -1,9 +1,12 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
-from services.rag_service import retrieve_context
-from services.run import main_func
-from utils.communication_utils import get_async, post_async
+from llm_pipeline.services.rag_service import retrieve_context
+from llm_pipeline.services.run import main_func
+from llm_pipeline.utils.communication_utils import get_async, post_async
+from llm_pipeline.utils.ollama_utils import parse_models, pull_model_streamer
+
 import os
 
 app = FastAPI()
@@ -73,38 +76,35 @@ async def list_models():
     Return a list of currently downloaded models
     """
     
-    current_running_model = f"{OLLAMA_URL}/api/ps"
-    all_models = f"{OLLAMA_URL}/api/tags"
+    curr_model_url = f"{OLLAMA_URL}/api/ps"
+    list_models_url = f"{OLLAMA_URL}/api/tags"
     
-    curr_resp = await get_async(current_running_model, 140)
-    all_resp = await get_async(all_models, 140)
+    curr_resp = await get_async(curr_model_url, 140)
+    all_resp = await get_async(list_models_url, 140)
     
-    # TODO: Return a list of the models
+    all_models = parse_models(all_resp)
+    curr_model = parse_models(curr_resp)
     
-    return {"running_model": "model", "all_models": ["m1", "m2"]}
+    return {"running_model": f"{curr_model}", "all_models": f"{all_models}"}
 
+
+@app.post("/pull_model")
+async def list_models(payload: SetModelRequest):
+    """ 
+        Pull the model with streaming response for progress
+    """
+
+    url = f"{OLLAMA_URL}/api/pull"
+    
+    return StreamingResponse(
+        pull_model_streamer(payload.model, url), 
+        media_type="application/x-ndjson"
+    )
 
 @app.post("/set_model")
 async def list_models(payload: SetModelRequest):
-    """ First pull the model if its not downloaded
-        Then set the env vars to used the pulled model
-    """
-    
-    url = f"{OLLAMA_URL}/api/pull"
-    body = { "model": payload.model }
-
-    response = await post_async(url, body, 140)
-    
-    return {
-        "model": payload.model
-    }
-
-
-@app.get("/download_status")
-async def download_status():
     """ 
-        Makes a get requst for the ollama logs
-        Then parses the logs fopr 
+        Set a new model to be used by ollama
     """
-    progress = 10
-    return {"status" : progress}
+
+    return {}

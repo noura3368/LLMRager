@@ -7,8 +7,7 @@ async def get_async(url, t=120):
         if r.status_code != 200:
             raise HTTPException(status_code=502, detail=f"Ollama error: {r.status_code} {r.text}")
         
-        data = r.json()
-        return data.get("response", "").strip()
+        return r.json()
     
     
 async def post_async(url, payload=None, t=120):
@@ -20,6 +19,5 @@ async def post_async(url, payload=None, t=120):
                 status_code=502,
                 detail=f"Ollama error: {r.status_code} {r.text}"
             )
-        data = r.json()
-        return data.get("response", "").strip()
+        return r.json()
         
