@@ -12,12 +12,6 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
 
-def info(message):
-    """Print info message with timestamp"""
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [INFO] {message}")
-
-
 def get_available_templates(templates_dir, type):
     """Get list of available Jinja templates"""
     templates = None 
@@ -28,10 +22,10 @@ def get_available_templates(templates_dir, type):
             for file in templates_path.glob("*.jinja"):
                 if type in file.name:
                     templates = file
-            info(f"Found templates: {templates}")
+            logging.info(f"Found templates: {templates}")
         return templates
     except Exception as e:
-        info(f"Error getting templates: {e}")
+        logging.info(f"Error getting templates: {e}")
         return None 
 
 
@@ -47,13 +41,13 @@ def load_models_from_csv(csv_path):
                     model_name = row.get("Model Name", "").strip()
                     if model_name:
                         models.append(model_name)
-            info(f"Loaded {len(models)} models from {csv_path}")
+            logging.infoinfo(f"Loaded {len(models)} models from {csv_path}")
             return models
         except Exception as e:
-            info(f"Error loading models from CSV: {e}")
+            logging.error(f"Error loading models from CSV: {e}")
             return []
     else: 
-        info(f"CSV file not found at {csv_path}")
+        logging.error(f"CSV file not found at {csv_path}")
         return []
 
 def render_template_and_generate(template_path, model, params, output_path, default_ollama_host, type, timeout=600):
@@ -109,7 +103,7 @@ def render_template_and_generate(template_path, model, params, output_path, defa
         return response_json
         
     except Exception as e:
-        info(f"Structured generation failed with error {e}, skipping output")
+        logging.error(f"Structured generation failed with error {e}, skipping output")
         print(f"❌ Error calling Ollama generate: {e}", file=sys.stderr)
         return False
 
@@ -124,7 +118,7 @@ def parse_results(response):
         elif isinstance(response, str):
             response_text = response
         else:
-            info("Unexpected response format, expected dict with 'response' key or string")
+            logging.error("Unexpected response format, expected dict with 'response' key or string")
             return []
         
         # Try parsing as JSON
@@ -135,27 +129,28 @@ def parse_results(response):
                     if isinstance(item, dict) and "command" in item:
                         list_of_commands.append(item["command"] )
             else:
-                info("Parsed JSON is not a list, cannot extract commands")
+                logging.warning("Parsed JSON is not a list, cannot extract commands")
             return list_of_commands
         except json.JSONDecodeError:
-            info("Response is not valid JSON, cannot extract commands")
+            logging.warning("Response is not valid JSON, cannot extract commands")
             return []
         
     except Exception as e:
-        info(f"Error parsing results: {e}")
+        logging.error(f"Error parsing results: {e}")
         return [] 
 
 def main_func(extract_items, rag_output=None, number_of_commands=10, type="generate"):
     #config = load_config()
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     MODELS = os.getenv("MODELS").split(',')
+    logging.info(f"Using OLLAMA_BASE_URL: {OLLAMA_BASE_URL}")
+    logging.info(f"Using MODELS: {MODELS}")
     PROMPTS = "llm_pipeline/prompts/original"
-    print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
-    print("MODELS", MODELS)
-    print("PROMPTS", PROMPTS)
+    logging.info(f"Using PROMPTS directory: {PROMPTS}")
+
     available_template = get_available_templates(PROMPTS, type)
     if not available_template:
-        info(f"No templates found in {PROMPTS}. Exiting.")
+        logging.error(f"No templates found in {PROMPTS}. Exiting.")
         sys.exit(1)
 
     list_of_commands = [] # final list of commands from all the models 
@@ -164,7 +159,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
         # Uses whatever value is set as env variable OLLAMA_BASE_URL, or defaulted config file value. 
         #resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": model, "stream": False}, timeout=600)
         #resp.raise_for_status()
-        info(f"Processing model: {model}")
+        logging.info(f"Processing model: {model}")
         timestamp = str(int(time.time() * 1000000000))
         params = {
             "EXTRACTED_ITEMS": extract_items,
@@ -178,11 +173,10 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
         success = render_template_and_generate(available_template, model, params, output_path, OLLAMA_BASE_URL, type)
         
         if not success:
-            info(f"Model returned unstructured response, not included in output: {model}")
+            logging.warning(f"Model returned unstructured response, not included in output: {model}")
             continue
         else:
             parsed_results = parse_results(success)
-            #print(f"Extracted commands from model {model}: {parsed_results}, total commands so far: {list_of_commands}")
             list_of_commands.extend(parsed_results)
     if len(list_of_commands) < number_of_commands:
         logging.warning("Generated fewer commands than requested. Generated: %d, Requested: %d", len(list_of_commands), number_of_commands)
@@ -196,7 +190,7 @@ def main_func(extract_items, rag_output=None, number_of_commands=10, type="gener
             
 if __name__ == "__main__":
     try:
-        info("Script starting with structured output")
+        logging.info("Script starting with structured output")
         extract_items = []
         main_func(extract_items=extract_items)
     except KeyboardInterrupt:

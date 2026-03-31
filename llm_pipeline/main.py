@@ -11,7 +11,8 @@ import os
 
 app = FastAPI()
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+#OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
 
 class GenerateRequest(BaseModel):
     items: list[str] = Field(..., min_length=1)
@@ -76,8 +77,8 @@ async def list_models():
     Return a list of currently downloaded models
     """
     
-    curr_model_url = f"{OLLAMA_URL}/api/ps"
-    list_models_url = f"{OLLAMA_URL}/api/tags"
+    curr_model_url = f"{OLLAMA_BASE_URL}/api/ps"
+    list_models_url = f"{OLLAMA_BASE_URL}/api/tags"
     
     curr_resp = await get_async(curr_model_url, 140)
     all_resp = await get_async(list_models_url, 140)
@@ -94,7 +95,7 @@ async def list_models(payload: SetModelRequest):
         Pull the model with streaming response for progress
     """
 
-    url = f"{OLLAMA_URL}/api/pull"
+    url = f"{OLLAMA_BASE_URL}/api/pull"
     
     return StreamingResponse(
         pull_model_streamer(payload.model, url), 
@@ -106,5 +107,5 @@ async def list_models(payload: SetModelRequest):
     """ 
         Set a new model to be used by ollama
     """
-
-    return {}
+    os.environ["MODELS"] = payload.model
+    return {"model": os.environ["MODELS"]}

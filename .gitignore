@@ -6,3 +6,4 @@ data/*
 docs_processed/*
 !docs_processed/.gitkeep
 docling_models/*
+data/watcher_state.json

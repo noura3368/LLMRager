@@ -40,7 +40,7 @@ services:
       CONFIG: /app/haiku.rag.yaml
       DB_PATH: /data/haiku.rag.lancedb
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
-      MODELS: ${MODELS}
+      #MODELS: ${MODELS}
       PRE_PROCESSING_MODEL: ${PRE_PROCESSING_MODEL}
       DOCLING_SERVE_URL: ${DOCLING_SERVE_URL}
     #extra_hosts:

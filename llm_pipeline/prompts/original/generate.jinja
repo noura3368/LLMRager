@@ -1,15 +1,43 @@
-You are a fuzzing engine. 
-    
-You are tasked with generating {{ NUMBER_OF_COMMANDS }} commands that a target would accept for fuzzing. 
-It is known that target accepts the following commands: {{ EXTRACTED_ITEMS }}
-You may use your own internal knowledge and the following retrieved context to generate NEW commands for the target. 
-The neighbours of the commands are also useful to generate new commands: 
+You are generating candidate commands for protocol fuzzing.
+
+Task:
+Generate up to {{ NUMBER_OF_COMMANDS }} NEW commands that the target may accept.
+
+Known accepted commands:
+{{ EXTRACTED_ITEMS }}
+
+Retrieved context:
 {{ RAG_CONTEXT }}
 
-In the output:
-The command is the string to be sent to the target
-The parameters that can be sent with the command to the target. 
+Instructions:
+- The known accepted commands are the primary evidence.
+- Use the retrieved context only as optional supporting evidence.
+- The retrieved context may be irrelevant, repetitive, incomplete, or misleading.
+- Ignore any retrieved context that does not clearly help infer additional commands for the same command family.
+- Do not repeat any known command.
+- Do not generate a command just because it appears in the retrieved context.
+- Only generate a command if it is consistent with the naming style, syntax, abbreviations, and command family suggested by the known commands.
+- Prefer conservative candidates over aggressive guessing.
+- If there is not enough evidence for {{ NUMBER_OF_COMMANDS }} strong candidates, return fewer.
+- Do not include commands that would change the state of the system.
+- Do not invent unsupported parameters.
+- Make every response unique.
 
-Do not invent commands and do not invent parameters unless they are valid.
-Do not include commands that would change the state of the system.
-Make sure that each of your responses is unique.
+A retrieved chunk is useful only if it helps infer one or more of:
+- a command naming pattern
+- a query form such as ?
+- a parameter structure
+- neighboring commands from the same family
+- a syntax pattern consistent with the known commands
+
+A retrieved chunk is not useful if it:
+- only repeats known commands
+- contains generic product prose
+- appears unrelated to the same device or command family
+- is too vague to support command inference
+
+For each generated command, include:
+- command
+- parameters
+
+Return only commands that are plausible and evidence-based.
