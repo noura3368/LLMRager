@@ -3,8 +3,11 @@ from typing import Any
 import json
 import mimetypes
 import os
-import requests
-
+import requests, logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 
 def convert_document(path: str | Path) -> tuple[str, dict[str, Any]]:
     path = Path(path)
@@ -33,16 +36,17 @@ def convert_document(path: str | Path) -> tuple[str, dict[str, Any]]:
             f"Docling failed: status={resp.status_code}, url={resp.url}, body={resp.text[:2000]}"
         )
     resp.raise_for_status()
-    print("status code:", resp.status_code, flush=True)
-    print("raw resp text:", resp.text[:2000], flush=True)
+    logging.info("Docling Status Code: ", resp.status_code, flush=True)
+    #print("raw resp text:", resp.text[:2000], flush=True)
     payload = resp.json()
-    print("Docling payload keys:", list(payload.keys()), flush=True)
+    logging.info("Docling payload keys:", list(payload.keys()), flush=True)
 
 
     document = payload.get("document", {}) or {}
     markdown = document.get("md_content", "") or ""
     structured = document.get("json_content", {}) or document
-
+    '''
+    for debugging purposes 
     print("payload keys:", list(payload.keys()), flush=True)
     print("document keys:", list(document.keys()), flush=True)
     print("status:", payload.get("status"), flush=True)
@@ -51,6 +55,7 @@ def convert_document(path: str | Path) -> tuple[str, dict[str, Any]]:
     print("md preview:", repr(markdown[:500]), flush=True)
     print("text len:", len(document.get("text_content", "") or ""), flush=True)
     print("json_content type:", type(document.get("json_content")).__name__, flush=True)
+    '''
     return markdown, structured
 
 
@@ -81,10 +86,10 @@ def main() -> None:
     pdf_path = Path("rag_server/docs/kd3005p-user-manual-3.pdf")
 
     md_path, json_path = write_debug_outputs(pdf_path)
-
-    print("Wrote:", flush=True)
-    print(md_path, flush=True)
-    print(json_path, flush=True)
+    # only if script is run directly - not used by watcher
+    logging.info("Wrote:", flush=True)
+    logging.info(md_path, flush=True)
+    logging.info(json_path, flush=True)
 
 
 if __name__ == "__main__":
