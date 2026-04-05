@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from llm_pipeline.services.rag_service import retrieve_context
 from llm_pipeline.services.run import main_func
-from llm_pipeline.utils.communication_utils import get_async, post_async
+from llm_pipeline.utils.communication_utils import get_async, post_async, delete_async
 from llm_pipeline.utils.ollama_utils import parse_models, pull_model_streamer
 
 import os
@@ -18,7 +18,7 @@ class GenerateRequest(BaseModel):
     items: list[str] = Field(..., min_length=1)
     number_of_commands: int = Field(..., ge=1)
 
-class SetModelRequest(BaseModel):
+class ModelRequest(BaseModel):
     model: str
 
 
@@ -80,17 +80,20 @@ async def list_models():
     curr_model_url = f"{OLLAMA_BASE_URL}/api/ps"
     list_models_url = f"{OLLAMA_BASE_URL}/api/tags"
     
-    curr_resp = await get_async(curr_model_url, 140)
+    # curr_resp = await get_async(curr_model_url, 140)
     all_resp = await get_async(list_models_url, 140)
     
     all_models = parse_models(all_resp)
-    curr_model = parse_models(curr_resp)
+    # curr_model = parse_models(curr_resp)
     
-    return {"running_model": f"{curr_model}", "all_models": f"{all_models}"}
+    return {
+        "active_model": os.environ["MODELS"],
+        "all_models": all_models
+    }
 
 
 @app.post("/pull_model")
-async def list_models(payload: SetModelRequest):
+async def list_models(payload: ModelRequest):
     """ 
         Pull the model with streaming response for progress
     """
@@ -102,10 +105,33 @@ async def list_models(payload: SetModelRequest):
         media_type="application/x-ndjson"
     )
 
+
 @app.post("/set_model")
-async def list_models(payload: SetModelRequest):
+async def list_models(payload: ModelRequest):
     """ 
         Set a new model to be used by ollama
     """
     os.environ["MODELS"] = payload.model
     return {"model": os.environ["MODELS"]}
+
+
+@app.delete("/delete_model")
+async def delete_model(payload: ModelRequest):
+    url = f"{OLLAMA_BASE_URL}/api/delete"
+
+    result = await delete_async(url, {"name": payload.model})
+
+    if isinstance(result, dict) and "error" in result:
+        # raise HTTPException(
+        #     status_code=400,
+        #     detail=result["error"]
+        # )
+        return {
+        "status": "error",
+        "message": result['error']
+    }
+
+    return {
+        "status": "ok",
+        "message": f"deleted {payload.model}"
+    }
