@@ -8,7 +8,12 @@ from typing import Any, Dict, List, Optional
 import os
 import ollama
 import requests
+import logging 
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 MAX_RETRIES = 2
 SLEEP_BETWEEN_CALLS = 0.2
 
@@ -247,8 +252,8 @@ def extract_records_from_chunk(client, chunk: str, model_name) -> List[Dict[str,
             if attempt < MAX_RETRIES:
                 time.sleep(SLEEP_BETWEEN_CALLS)
             else:
-                print(f"[WARN] Failed chunk: {fallback_section_title}", flush=True)
-                print(f"       Error: {e}", flush=True)
+                logging.error(f"[ERROR] Failed chunk: {fallback_section_title}", flush=True)
+                logging.error(f"       Error: {e}", flush=True)
 
     return []
 
@@ -262,13 +267,13 @@ def extract_records_from_markdown(
     md = html.unescape(md)
     sections = split_into_sections(md)
 
-    print(f"Found {len(sections)} sections", flush=True)
+    logging.info(f"Found {len(sections)} sections", flush=True)
 
     all_records: List[Dict[str, Any]] = []
 
     for idx, section in enumerate(sections, start=1):
         title = infer_section_title_from_chunk(section)
-        print(f"[{idx}/{len(sections)}] Processing: {title}", flush=True)
+        logging.info(f"[{idx}/{len(sections)}] Processing: {title}", flush=True)
 
         records = extract_records_from_chunk(client, section, model_name)
         all_records.extend(records)
@@ -298,17 +303,17 @@ def load_ollama_models(OLLAMA_BASE_URL, preprocessing_model):
     try:
         resp = requests.post(f'{OLLAMA_BASE_URL}/api/pull', json={"name": preprocessing_model, "stream": False}, timeout=600)
         resp.raise_for_status()
-        print(f"Processing model: {preprocessing_model}")
+        logging.info(f"Processing model: {preprocessing_model}")
         return True 
     except Exception as e:
-        print(f"Error connecting to Ollama at {OLLAMA_BASE_URL}: {e}")
+        logging.error(f"Error connecting to Ollama at {OLLAMA_BASE_URL}: {e}")
         return False
 
 def main_func(markdown_text, watcher_call=False) -> None:
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL")
-    print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
-    print("PRE_PROCESSING_MODEL", PRE_PROCESSING_MODEL)
+    logging.info("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
+    logging.info("PRE_PROCESSING_MODEL", PRE_PROCESSING_MODEL)
     if load_ollama_models(OLLAMA_BASE_URL, PRE_PROCESSING_MODEL):
         client = ollama.Client(host=OLLAMA_BASE_URL)
         records = extract_records_from_markdown_file(markdown_text, model_name=PRE_PROCESSING_MODEL, client=client)
@@ -316,4 +321,4 @@ def main_func(markdown_text, watcher_call=False) -> None:
             return records 
         #write_records_json(records, output_json)
     else:
-        print("Failed to load models from Ollama. Exiting.", flush=True)
+        logging.error("Failed to load models from Ollama. Exiting.", flush=True)

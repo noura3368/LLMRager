@@ -14,6 +14,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 from services.create_markdown import convert_document
 from services.read_markdown import main_func
+import logging 
 from haiku.rag.client import HaikuRAG
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "/raw_docs"))
@@ -35,6 +36,10 @@ MANUAL_TEXT_KEYWORDS = {
     "usage", "returns", "query"
 }
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 
 def load_state() -> dict[str, Any]:
     if STATE_PATH.exists():
@@ -85,7 +90,6 @@ def is_instruction_manual(path: Path) -> bool:
 
 def preprocess_manual(path: Path) -> list[dict[str, Any]]:
     markdown, structured = convert_document(path)
-    #print(markdown, path, "hello", flush=True)
     records = main_func(markdown, watcher_call=True)
     return records
 
@@ -158,13 +162,13 @@ def process_non_manual(path: Path) -> None:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     dst = PROCESSED_DIR / path.name
     shutil.copy2(path, dst)
-    print(f"[normal] copied {path} -> {dst}")
+    logging.info(f"[normal] copied {path} -> {dst}")
 
 
 def process_manual(path: Path, file_hash: str, state:dict) -> None:
     records = preprocess_manual(path)
     document_ids = asyncio.run(import_manual_records(records, path, file_hash))
-    print(f"[manual] document_ids = {document_ids}", flush=True)
+    logging.info(f"[manual] document_ids = {document_ids}", flush=True)
     state["files"][str(path)] = {
         "sha256": file_hash,
         "kind": "manual",
@@ -173,7 +177,7 @@ def process_manual(path: Path, file_hash: str, state:dict) -> None:
     }
     save_state(state)
 
-    print(f"[manual] imported {len(records)} records from {path.name}", flush=True)
+    logging.info(f"[manual] imported {len(records)} records from {path.name}", flush=True)
 
 
 def handle_file(path: Path, state: dict[str, Any]) -> None:
@@ -181,14 +185,14 @@ def handle_file(path: Path, state: dict[str, Any]) -> None:
         return
 
     if path.suffix.lower() not in SUPPORTED_EXTS:
-        print(f"[skip] unsupported extension: {path.name}")
+        logging.warning(f"[skip] unsupported extension: {path.name}")
         return
 
     file_hash = sha256_file(path)
     old_hash = state["files"].get(str(path), {}).get("sha256")
 
     if old_hash == file_hash:
-        print(f"[skip] unchanged: {path.name}")
+        logging.info(f"[skip] unchanged: {path.name}")
         return
 
     if is_instruction_manual(path):
@@ -216,9 +220,9 @@ def delete_manual_documents(document_ids: list[str]) -> None:
                 ],
                 check=True,
             )
-            print(f"[delete] removed manual doc {doc_id}", flush=True)
+            logging.info(f"[delete] removed manual doc {doc_id}", flush=True)
         except Exception as e:
-            print(f"[delete] failed for {doc_id}: {e}", flush=True)
+            logging.error(f"[delete] failed for {doc_id}: {e}", flush=True)
 
 class Handler(FileSystemEventHandler):
     def __init__(self, state: dict[str, Any]) -> None:
@@ -245,20 +249,20 @@ class Handler(FileSystemEventHandler):
         info = self.state["files"].pop(str(path), None)
         save_state(self.state)
         if not info:
-            print(f"[delete] no state for {path}", flush=True)
+            logging.warning(f"[delete] no state for {path}", flush=True)
             return
         
         if info and info.get("kind") == "normal":
             processed = PROCESSED_DIR / path.name
             if processed.exists():
                 processed.unlink()
-                print(f"[delete] removed processed file {processed}")
+                logging.info(f"[delete] removed processed file {processed}")
 
         # iterate through the list of doc ids and delete them from the RAG database
         elif info.get("kind") == "manual":
             doc_ids = info.get("document_ids", [])
             delete_manual_documents(doc_ids)
-            print(f"[delete] raw file removed: {path}")
+            logging.info(f"[delete] raw file removed: {path}")
 
 
 
@@ -279,7 +283,7 @@ def main() -> None:
     observer.schedule(Handler(state), str(RAW_DIR), recursive=True)
     observer.start()
 
-    print(f"Watching {RAW_DIR}")
+    logging.info(f"Watching {RAW_DIR}")
 
     try:
         while True:
