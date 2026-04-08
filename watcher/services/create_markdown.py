@@ -36,10 +36,9 @@ def convert_document(path: str | Path) -> tuple[str, dict[str, Any]]:
             f"Docling failed: status={resp.status_code}, url={resp.url}, body={resp.text[:2000]}"
         )
     resp.raise_for_status()
-    logging.info("Docling Status Code: ", resp.status_code, flush=True)
-    #print("raw resp text:", resp.text[:2000], flush=True)
+    logging.info("Docling Status Code: ", resp.status_code)
     payload = resp.json()
-    logging.info("Docling payload keys:", list(payload.keys()), flush=True)
+    logging.info("Docling payload keys:", list(payload.keys()))
 
 
     document = payload.get("document", {}) or {}
@@ -87,9 +86,9 @@ def main() -> None:
 
     md_path, json_path = write_debug_outputs(pdf_path)
     # only if script is run directly - not used by watcher
-    logging.info("Wrote:", flush=True)
-    logging.info(md_path, flush=True)
-    logging.info(json_path, flush=True)
+    logging.info("Wrote:")
+    logging.info(md_path)
+    logging.info(json_path)
 
 
 if __name__ == "__main__":

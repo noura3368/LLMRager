@@ -168,7 +168,7 @@ def process_non_manual(path: Path) -> None:
 def process_manual(path: Path, file_hash: str, state:dict) -> None:
     records = preprocess_manual(path)
     document_ids = asyncio.run(import_manual_records(records, path, file_hash))
-    logging.info(f"[manual] document_ids = {document_ids}", flush=True)
+    logging.info(f"[manual] document_ids = {document_ids}")
     state["files"][str(path)] = {
         "sha256": file_hash,
         "kind": "manual",
@@ -177,7 +177,7 @@ def process_manual(path: Path, file_hash: str, state:dict) -> None:
     }
     save_state(state)
 
-    logging.info(f"[manual] imported {len(records)} records from {path.name}", flush=True)
+    logging.info(f"[manual] imported {len(records)} records from {path.name}")
 
 
 def handle_file(path: Path, state: dict[str, Any]) -> None:
@@ -220,9 +220,9 @@ def delete_manual_documents(document_ids: list[str]) -> None:
                 ],
                 check=True,
             )
-            logging.info(f"[delete] removed manual doc {doc_id}", flush=True)
+            logging.info(f"[delete] removed manual doc {doc_id}")
         except Exception as e:
-            logging.error(f"[delete] failed for {doc_id}: {e}", flush=True)
+            logging.error(f"[delete] failed for {doc_id}: {e}")
 
 class Handler(FileSystemEventHandler):
     def __init__(self, state: dict[str, Any]) -> None:
@@ -249,7 +249,7 @@ class Handler(FileSystemEventHandler):
         info = self.state["files"].pop(str(path), None)
         save_state(self.state)
         if not info:
-            logging.warning(f"[delete] no state for {path}", flush=True)
+            logging.warning(f"[delete] no state for {path}")
             return
         
         if info and info.get("kind") == "normal":

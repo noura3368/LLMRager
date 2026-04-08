@@ -252,8 +252,8 @@ def extract_records_from_chunk(client, chunk: str, model_name) -> List[Dict[str,
             if attempt < MAX_RETRIES:
                 time.sleep(SLEEP_BETWEEN_CALLS)
             else:
-                logging.error(f"[ERROR] Failed chunk: {fallback_section_title}", flush=True)
-                logging.error(f"       Error: {e}", flush=True)
+                logging.error(f"[ERROR] Failed chunk: {fallback_section_title}")
+                logging.error(f"       Error: {e}")
 
     return []
 
@@ -267,13 +267,13 @@ def extract_records_from_markdown(
     md = html.unescape(md)
     sections = split_into_sections(md)
 
-    logging.info(f"Found {len(sections)} sections", flush=True)
+    logging.info(f"Found {len(sections)} sections")
 
     all_records: List[Dict[str, Any]] = []
 
     for idx, section in enumerate(sections, start=1):
         title = infer_section_title_from_chunk(section)
-        logging.info(f"[{idx}/{len(sections)}] Processing: {title}", flush=True)
+        logging.info(f"[{idx}/{len(sections)}] Processing: {title}")
 
         records = extract_records_from_chunk(client, section, model_name)
         all_records.extend(records)
@@ -321,4 +321,4 @@ def main_func(markdown_text, watcher_call=False) -> None:
             return records 
         #write_records_json(records, output_json)
     else:
-        logging.error("Failed to load models from Ollama. Exiting.", flush=True)
+        logging.error("Failed to load models from Ollama. Exiting.")
