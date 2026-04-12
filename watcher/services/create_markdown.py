@@ -36,9 +36,9 @@ def convert_document(path: str | Path) -> tuple[str, dict[str, Any]]:
             f"Docling failed: status={resp.status_code}, url={resp.url}, body={resp.text[:2000]}"
         )
     resp.raise_for_status()
-    logging.info("Docling Status Code: ", resp.status_code)
+    logging.info(f"Docling Status Code: {resp.status_code}")
     payload = resp.json()
-    logging.info("Docling payload keys:", list(payload.keys()))
+    logging.info(f"Docling payload keys: {list(payload.keys())}")
 
 
     document = payload.get("document", {}) or {}

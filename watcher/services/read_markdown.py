@@ -312,8 +312,8 @@ def load_ollama_models(OLLAMA_BASE_URL, preprocessing_model):
 def main_func(markdown_text, watcher_call=False) -> None:
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL")
-    logging.info("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
-    logging.info("PRE_PROCESSING_MODEL", PRE_PROCESSING_MODEL)
+    logging.info(f"OLLAMA_BASE_URL {OLLAMA_BASE_URL}")
+    logging.info(f"PRE_PROCESSING_MODEL {PRE_PROCESSING_MODEL}")
     if load_ollama_models(OLLAMA_BASE_URL, PRE_PROCESSING_MODEL):
         client = ollama.Client(host=OLLAMA_BASE_URL)
         records = extract_records_from_markdown_file(markdown_text, model_name=PRE_PROCESSING_MODEL, client=client)

@@ -12,7 +12,7 @@ import subprocess
 from pypdf import PdfReader
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
-from services.create_markdown import convert_document
+from services.create_markdown import convert_document, write_debug_outputs
 from services.read_markdown import main_func
 import logging 
 from haiku.rag.client import HaikuRAG
@@ -90,6 +90,8 @@ def is_instruction_manual(path: Path) -> bool:
 
 def preprocess_manual(path: Path) -> list[dict[str, Any]]:
     markdown, structured = convert_document(path)
+    #markdown, structured = write_debug_outputs(path, out_dir="/data2/nkhajehn/rag_server/debug_outputs")
+    logging.info(f"Preprocessed file.")
     records = main_func(markdown, watcher_call=True)
     return records
 
