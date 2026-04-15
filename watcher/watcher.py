@@ -8,6 +8,7 @@ import shutil
 import time
 from pathlib import Path
 from typing import Any
+import re
 import subprocess
 from pypdf import PdfReader
 from watchdog.events import FileSystemEventHandler
@@ -88,12 +89,28 @@ def is_instruction_manual(path: Path) -> bool:
     return hits >= 3 and name.endswith((".pdf"))
 
 
-def preprocess_manual(path: Path) -> list[dict[str, Any]]:
-    markdown, structured = convert_document(path)
-    #markdown, structured = write_debug_outputs(path, out_dir="/data2/nkhajehn/rag_server/debug_outputs")
+def preprocess_manual(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    markdown, _ = convert_document(path)
     logging.info(f"Preprocessed file.")
-    records = main_func(markdown, watcher_call=True)
-    return records
+    records, plain_sections = main_func(markdown, watcher_call=True)
+    logging.info(f"Extracted {len(records)} command records and {len(plain_sections)} plain text sections")
+    return records, plain_sections
+
+
+_INLINE_IMAGE_RE = re.compile(r"!\[.*?\]\(data:image/[^)]*\)")
+
+
+def save_plain_sections_as_markdown(plain_sections: list[str], source_path: Path) -> Path | None:
+    """Write non-command sections to PROCESSED_DIR as a .md file for haiku-monitor to chunk."""
+    content = "\n\n".join(s for s in plain_sections if s.strip())
+    content = _INLINE_IMAGE_RE.sub("", content)
+    if not content.strip():
+        return None
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    md_path = PROCESSED_DIR / f"{source_path.stem}.md"
+    md_path.write_text(content, encoding="utf-8")
+    logging.info(f"[manual] plain sections saved -> {md_path}")
+    return md_path
 
 
 def record_to_text(rec: dict[str, Any]) -> str:
@@ -133,8 +150,8 @@ def record_to_text(rec: dict[str, Any]) -> str:
     return "\n".join(x for x in lines if x.strip())
 
 
-async def import_manual_records(records: list[dict[str, Any]], source_path: Path, file_hash: str) -> None:
-    document_ids= []
+async def import_manual_records(records: list[dict[str, Any]], source_path: Path, file_hash: str) -> list[str]:
+    document_ids = []
     async with HaikuRAG(DB_PATH, create=True) as client:
         for i, rec in enumerate(records):
             text = record_to_text(rec)
@@ -167,19 +184,22 @@ def process_non_manual(path: Path) -> None:
     logging.info(f"[normal] copied {path} -> {dst}")
 
 
-def process_manual(path: Path, file_hash: str, state:dict) -> None:
-    records = preprocess_manual(path)
+def process_manual(path: Path, file_hash: str, state: dict) -> None:
+    records, plain_sections = preprocess_manual(path)
+
     document_ids = asyncio.run(import_manual_records(records, path, file_hash))
-    logging.info(f"[manual] document_ids = {document_ids}")
+
+    plain_md = save_plain_sections_as_markdown(plain_sections, path)
+
     state["files"][str(path)] = {
         "sha256": file_hash,
         "kind": "manual",
         "document_ids": document_ids,
+        "plain_md_path": str(plain_md) if plain_md else None,
         "processed_at": time.time(),
     }
     save_state(state)
-
-    logging.info(f"[manual] imported {len(records)} records from {path.name}")
+    logging.info(f"[manual] imported {len(records)} command records + plain text -> {plain_md} from {path.name}")
 
 
 def handle_file(path: Path, state: dict[str, Any]) -> None:
@@ -260,10 +280,19 @@ class Handler(FileSystemEventHandler):
                 processed.unlink()
                 logging.info(f"[delete] removed processed file {processed}")
 
-        # iterate through the list of doc ids and delete them from the RAG database
+        # delete command records from RAG, then remove the plain-text .md so
+        # haiku-monitor's delete_orphans cleans up its chunks automatically
         elif info.get("kind") == "manual":
             doc_ids = info.get("document_ids", [])
             delete_manual_documents(doc_ids)
+
+            plain_md = info.get("plain_md_path")
+            if plain_md:
+                plain_md_path = Path(plain_md)
+                if plain_md_path.exists():
+                    plain_md_path.unlink()
+                    logging.info(f"[delete] removed plain markdown {plain_md_path}")
+
             logging.info(f"[delete] raw file removed: {path}")
 
 

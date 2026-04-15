@@ -17,24 +17,31 @@ logging.basicConfig(
 MAX_RETRIES = 2
 SLEEP_BETWEEN_CALLS = 0.2
 
-SECTION_HEADING_RE = re.compile(r"(?m)^##\s+.+$")
+SECTION_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+.+$")
 
-SYSTEM_PROMPT = """You extract command definitions from device-manual markdown.
 
-Return valid JSON only.
+SYSTEM_PROMPT = """You extract command or instruction definitions from technical documentation.
+
+A command is any named operation a system, device, or program accepts as input — regardless of how it is presented in the document. Recognise commands in any of these formats:
+- Bullet or numbered lists where each item is a command name followed by a description
+- Tables with columns for name, syntax, description, parameters, or response
+- Sections or subsections dedicated to a single command
+- Code blocks or inline code showing invocation syntax
+- Key-value style entries (e.g. "Command: X", "Syntax: Y")
+
 
 Interpret HTML-escaped symbols correctly:
 - &lt; means <
 - &gt; means >
 - &amp; means &
 
-You must return either:
-1. a single JSON object, or
-2. a JSON array of objects
+You must always return a JSON array of objects, even if only one command is found.
+Example of correct output for one command: [{ ... }]
+Never return a bare object. Always wrap in [ ].
 
 Each object must use exactly these keys:
-- entry_name
-- syntax
+- entry_name   (the short name or identifier of the command)
+- syntax       (the full invocation form, including parameters; if identical to entry_name use that)
 - command_type
 - description
 - response
@@ -44,6 +51,7 @@ Each object must use exactly these keys:
 - section_title
 
 Rules:
+- Extract every command present in the chunk — do not stop after the first one.
 - Do not invent commands or fields not supported by the text.
 - Preserve command syntax exactly when possible.
 - If a field is missing, use:
@@ -56,11 +64,13 @@ Rules:
   - "test"
   - "execute"
   - ""
-- If the chunk does not describe any command, return [].
+- If the chunk contains no commands or instructions, return [].
 - Return JSON only. No markdown fences. No explanation.
+Think about your answer before responding. 
+Return valid a array of JSON objects of the commands found only.
 """
 
-USER_PROMPT_TEMPLATE = """Extract command record(s) from this markdown chunk.
+USER_PROMPT_TEMPLATE = """Extract all command or instruction record(s) from this documentation chunk.
 
 Markdown:
 {chunk}
@@ -74,7 +84,9 @@ def read_markdown_file(markdown_text) -> str:
 def split_into_sections(md: str) -> List[str]:
     matches = list(SECTION_HEADING_RE.finditer(md))
     if not matches:
-        return [md.strip()] if md.strip() else []
+        if not md.strip():
+            return []
+        return [md.strip()]
 
     sections: List[str] = []
     for i, match in enumerate(matches):
@@ -88,7 +100,7 @@ def split_into_sections(md: str) -> List[str]:
 
 def infer_section_title_from_chunk(chunk: str) -> str:
     first_line = chunk.strip().splitlines()[0].strip() if chunk.strip() else ""
-    return re.sub(r"^##\s*", "", first_line).strip()
+    return re.sub(r"^#{1,3}\s*", "", first_line).strip()
 
 
 def clean_json_text(text: str) -> str:
@@ -137,11 +149,11 @@ def validate_record(record: Dict[str, Any], fallback_section_title: str) -> Opti
         if key in record:
             out[key] = record[key]
 
-    out["entry_name"] = str(out["entry_name"]).strip()
-    out["syntax"] = str(out["syntax"]).strip()
-    out["description"] = str(out["description"]).strip()
-    out["response"] = str(out["response"]).strip()
-    out["section_title"] = str(out["section_title"]).strip() or fallback_section_title
+    out["entry_name"] = html.unescape(str(out["entry_name"])).strip()
+    out["syntax"] = html.unescape(str(out["syntax"])).strip()
+    out["description"] = html.unescape(str(out["description"])).strip()
+    out["response"] = html.unescape(str(out["response"])).strip()
+    out["section_title"] = html.unescape(str(out["section_title"])).strip() or fallback_section_title
     out["command_type"] = normalize_command_type(out["command_type"])
 
     if not isinstance(out["parameters"], dict):
@@ -233,6 +245,7 @@ def extract_records_from_chunk(client, chunk: str, model_name) -> List[Dict[str,
     for attempt in range(MAX_RETRIES + 1):
         try:
             raw = call_llm(client, chunk, model_name)
+            print(f"LLM raw output: {raw}, chunk {chunk}", flush=True)
             parsed = parse_llm_output(raw)
 
             if isinstance(parsed, dict):
@@ -263,31 +276,35 @@ def extract_records_from_markdown(
     md: str,
     model_name: str,
     sleep_between_calls: float = SLEEP_BETWEEN_CALLS,
-) -> List[Dict[str, Any]]:
+) -> tuple[List[Dict[str, Any]], List[str]]:
     md = html.unescape(md)
     sections = split_into_sections(md)
 
     logging.info(f"Found {len(sections)} sections")
 
     all_records: List[Dict[str, Any]] = []
+    plain_sections: List[str] = []
 
     for idx, section in enumerate(sections, start=1):
         title = infer_section_title_from_chunk(section)
-        logging.info(f"[{idx}/{len(sections)}] Processing: {title}")
+        logging.info(f"[{idx}/{len(sections)}] Processing: {title} ({len(section)} chars)")
 
         records = extract_records_from_chunk(client, section, model_name)
-        all_records.extend(records)
-
+        if records:
+            all_records.extend(records)
+        else:
+            plain_sections.append(section)
         time.sleep(sleep_between_calls)
 
     all_records = deduplicate_records(all_records)
     all_records = add_surrounding_neighbours(all_records, window=5)
-    return all_records
+    return all_records, plain_sections
+
 
 
 def extract_records_from_markdown_file(path, model_name, client):
     md = read_markdown_file(path)
-    return extract_records_from_markdown(client,md, model_name=model_name)
+    return extract_records_from_markdown(client, md, model_name=model_name)
 
 
 def write_records_json(records: List[Dict[str, Any]], output_path: str | Path) -> Path:
@@ -309,16 +326,16 @@ def load_ollama_models(OLLAMA_BASE_URL, preprocessing_model):
         logging.error(f"Error connecting to Ollama at {OLLAMA_BASE_URL}: {e}")
         return False
 
-def main_func(markdown_text, watcher_call=False) -> None:
+def main_func(markdown_text, watcher_call=False):
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
     PRE_PROCESSING_MODEL = os.getenv("PRE_PROCESSING_MODEL")
     logging.info(f"OLLAMA_BASE_URL {OLLAMA_BASE_URL}")
     logging.info(f"PRE_PROCESSING_MODEL {PRE_PROCESSING_MODEL}")
     if load_ollama_models(OLLAMA_BASE_URL, PRE_PROCESSING_MODEL):
         client = ollama.Client(host=OLLAMA_BASE_URL)
-        records = extract_records_from_markdown_file(markdown_text, model_name=PRE_PROCESSING_MODEL, client=client)
+        records, plain_sections = extract_records_from_markdown_file(markdown_text, model_name=PRE_PROCESSING_MODEL, client=client)
         if watcher_call:
-            return records 
-        #write_records_json(records, output_json)
+            return records, plain_sections
     else:
         logging.error("Failed to load models from Ollama. Exiting.")
+        return [], []
