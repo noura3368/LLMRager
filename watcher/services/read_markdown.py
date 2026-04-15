@@ -19,29 +19,22 @@ SLEEP_BETWEEN_CALLS = 0.2
 
 SECTION_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+.+$")
 
+SYSTEM_PROMPT = """You extract command definitions from device-manual markdown.
 
-SYSTEM_PROMPT = """You extract command or instruction definitions from technical documentation.
-
-A command is any named operation a system, device, or program accepts as input — regardless of how it is presented in the document. Recognise commands in any of these formats:
-- Bullet or numbered lists where each item is a command name followed by a description
-- Tables with columns for name, syntax, description, parameters, or response
-- Sections or subsections dedicated to a single command
-- Code blocks or inline code showing invocation syntax
-- Key-value style entries (e.g. "Command: X", "Syntax: Y")
-
+Return valid JSON only.
 
 Interpret HTML-escaped symbols correctly:
 - &lt; means <
 - &gt; means >
 - &amp; means &
 
-You must always return a JSON array of objects, even if only one command is found.
-Example of correct output for one command: [{ ... }]
-Never return a bare object. Always wrap in [ ].
+You must return either:
+1. a single JSON object, or
+2. a JSON array of objects
 
 Each object must use exactly these keys:
-- entry_name   (the short name or identifier of the command)
-- syntax       (the full invocation form, including parameters; if identical to entry_name use that)
+- entry_name
+- syntax
 - command_type
 - description
 - response
@@ -51,7 +44,6 @@ Each object must use exactly these keys:
 - section_title
 
 Rules:
-- Extract every command present in the chunk — do not stop after the first one.
 - Do not invent commands or fields not supported by the text.
 - Preserve command syntax exactly when possible.
 - If a field is missing, use:
@@ -64,12 +56,9 @@ Rules:
   - "test"
   - "execute"
   - ""
-- If the chunk contains no commands or instructions, return [].
+- If the chunk does not describe any command, return [].
 - Return JSON only. No markdown fences. No explanation.
-Think about your answer before responding. 
-Return valid a array of JSON objects of the commands found only.
 """
-
 USER_PROMPT_TEMPLATE = """Extract all command or instruction record(s) from this documentation chunk.
 
 Markdown:
@@ -96,6 +85,57 @@ def split_into_sections(md: str) -> List[str]:
         if chunk:
             sections.append(chunk)
     return sections
+
+
+def split_section_by_bullets(section: str) -> List[str]:
+    """
+    Split a section into per-entry chunks so the LLM only sees one entry at a time.
+
+    Detects Docling-style entries: a plain-text command name on its own line,
+    followed within a few lines by sub-bullet properties (e.g. - Description: …).
+
+    Returns [section] unchanged when no such structure is detected.
+    """
+    lines = section.splitlines()
+
+    # --- Strategy 1: plain-text entry lines followed by sub-bullets ---
+    # A line is a "command entry start" when it is non-empty, not a heading,
+    # not itself a bullet/indented line, and is followed (within 4 lines)
+    # by a sub-bullet.
+    entry_starts: List[int] = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped[0] in ('#', '-', '*', '+', '·', '•'):
+            continue
+        if line[0] in (' ', '\t'):
+            continue
+        for j in range(i + 1, min(i + 5, len(lines))):
+            nxt = lines[j].strip()
+            if not nxt:
+                continue
+            if nxt.startswith(('-', '*', '+')):
+                entry_starts.append(i)
+            break
+
+    if len(entry_starts) < 2:
+        return [section]
+
+    # Intro text before the first entry (e.g. section heading or preamble sentence)
+    intro = "\n".join(lines[: entry_starts[0]]).strip()
+
+    chunks: List[str] = []
+    for idx, start in enumerate(entry_starts):
+        end = entry_starts[idx + 1] if idx + 1 < len(entry_starts) else len(lines)
+        chunk = "\n".join(lines[start:end]).strip()
+        if not chunk:
+            continue
+        if intro and idx == 0:
+            chunk = intro + "\n\n" + chunk
+        chunks.append(chunk)
+
+    return chunks if len(chunks) >= 2 else [section]
 
 
 def infer_section_title_from_chunk(chunk: str) -> str:
@@ -229,7 +269,7 @@ def call_llm(client, chunk: str, model_name: str) -> str:
         system=SYSTEM_PROMPT,
         prompt=USER_PROMPT_TEMPLATE.format(chunk=chunk),
         format="json",
-        options={"temperature": 0}, # minimizing randomness 
+        options={"temperature": 0},
     )
     return response["response"]
 
@@ -245,7 +285,6 @@ def extract_records_from_chunk(client, chunk: str, model_name) -> List[Dict[str,
     for attempt in range(MAX_RETRIES + 1):
         try:
             raw = call_llm(client, chunk, model_name)
-            print(f"LLM raw output: {raw}, chunk {chunk}", flush=True)
             parsed = parse_llm_output(raw)
 
             if isinstance(parsed, dict):
@@ -289,12 +328,17 @@ def extract_records_from_markdown(
         title = infer_section_title_from_chunk(section)
         logging.info(f"[{idx}/{len(sections)}] Processing: {title} ({len(section)} chars)")
 
-        records = extract_records_from_chunk(client, section, model_name)
-        if records:
-            all_records.extend(records)
-        else:
-            plain_sections.append(section)
-        time.sleep(sleep_between_calls)
+        sub_chunks = split_section_by_bullets(section)
+        if len(sub_chunks) > 1:
+            logging.info(f"  -> {len(sub_chunks)} bullet chunks")
+
+        for sub_chunk in sub_chunks:
+            records = extract_records_from_chunk(client, sub_chunk, model_name)
+            if records:
+                all_records.extend(records)
+            else:
+                plain_sections.append(sub_chunk)
+            time.sleep(sleep_between_calls)
 
     all_records = deduplicate_records(all_records)
     all_records = add_surrounding_neighbours(all_records, window=5)

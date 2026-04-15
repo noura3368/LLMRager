@@ -4,19 +4,18 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import shutil
 import time
 from pathlib import Path
 from typing import Any
-import re
-import subprocess
 from pypdf import PdfReader
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
-from services.create_markdown import convert_document, write_debug_outputs
+from services.create_markdown import convert_document
 from services.read_markdown import main_func
-import logging 
 from haiku.rag.client import HaikuRAG
+import logging
 
 RAW_DIR = Path(os.getenv("RAW_DIR", "/raw_docs"))
 PROCESSED_DIR = Path(os.getenv("PROCESSED_DIR", "/docs_processed"))
@@ -42,6 +41,10 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
 
+# ---------------------------------------------------------------------------
+# State helpers
+# ---------------------------------------------------------------------------
+
 def load_state() -> dict[str, Any]:
     if STATE_PATH.exists():
         try:
@@ -64,53 +67,63 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+# ---------------------------------------------------------------------------
+# Instruction manual detection
+# ---------------------------------------------------------------------------
+
 def read_preview(path: Path, max_chars: int = 4000) -> str:
     try:
-        if path.suffix.lower() == ".pdf":
-            reader = PdfReader(str(path))
-            pieces = []
-            for page in reader.pages[:2]:
-                pieces.append(page.extract_text() or "")
-            return "\n".join(pieces)[:max_chars]
-
-        return path.read_text(encoding="utf-8", errors="ignore")[:max_chars]
+        reader = PdfReader(str(path))
+        pieces = [page.extract_text() or "" for page in reader.pages[:2]]
+        return "\n".join(pieces)[:max_chars]
     except Exception:
         return ""
 
 
 def is_instruction_manual(path: Path) -> bool:
     name = path.name.lower()
-
-    if any(k in name for k in MANUAL_NAME_KEYWORDS) and name.endswith((".pdf")):
+    if any(k in name for k in MANUAL_NAME_KEYWORDS):
         return True
-
     preview = read_preview(path).lower()
-    hits = sum(1 for k in MANUAL_TEXT_KEYWORDS if k in preview)
-    return hits >= 3 and name.endswith((".pdf"))
+    return sum(1 for k in MANUAL_TEXT_KEYWORDS if k in preview) >= 3
 
 
-def preprocess_manual(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
-    markdown, _ = convert_document(path)
-    logging.info(f"Preprocessed file.")
-    records, plain_sections = main_func(markdown, watcher_call=True)
-    logging.info(f"Extracted {len(records)} command records and {len(plain_sections)} plain text sections")
-    return records, plain_sections
+# ---------------------------------------------------------------------------
+# PDF content inspection
+# ---------------------------------------------------------------------------
+
+def pdf_has_tables_or_images(path: Path) -> bool:
+    """Return True if the PDF contains any images or table-like content."""
+    try:
+        reader = PdfReader(str(path))
+        for page in reader.pages:
+            # Images embedded in the page
+            if page.images:
+                return True
+
+            text = page.extract_text() or ""
+            lines = [l for l in text.splitlines() if l.strip()]
+
+            # ASCII / markdown-style table rows  (at least 2 pipe characters)
+            if sum(1 for l in lines if l.count("|") >= 2) >= 2:
+                return True
+
+            # Tab-separated columns  (multiple tabs on multiple lines)
+            if sum(1 for l in lines if l.count("\t") >= 2) >= 3:
+                return True
+
+    except Exception as e:
+        logging.warning(f"[inspect] could not inspect {path.name}: {e}")
+
+    return False
 
 
-_INLINE_IMAGE_RE = re.compile(r"!\[.*?\]\(data:image/[^)]*\)")
+# ---------------------------------------------------------------------------
+# Processing paths
+# ---------------------------------------------------------------------------
 
-
-def save_plain_sections_as_markdown(plain_sections: list[str], source_path: Path) -> Path | None:
-    """Write non-command sections to PROCESSED_DIR as a .md file for haiku-monitor to chunk."""
-    content = "\n\n".join(s for s in plain_sections if s.strip())
-    content = _INLINE_IMAGE_RE.sub("", content)
-    if not content.strip():
-        return None
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    md_path = PROCESSED_DIR / f"{source_path.stem}.md"
-    md_path.write_text(content, encoding="utf-8")
-    logging.info(f"[manual] plain sections saved -> {md_path}")
-    return md_path
+# Strips all markdown image syntax: ![alt](src)
+_IMAGE_RE = re.compile(r"!\[.*?\]\([^)]*\)")
 
 
 def record_to_text(rec: dict[str, Any]) -> str:
@@ -121,47 +134,33 @@ def record_to_text(rec: dict[str, Any]) -> str:
         f"Description: {rec.get('description', '')}",
         f"Response: {rec.get('response', '')}",
     ]
-
     params = rec.get("parameters", {})
     if isinstance(params, dict) and params:
-        param_text = "; ".join(f"{k} = {v}" for k, v in params.items())
-        lines.append(f"Parameters: {param_text}")
-
-    notes = rec.get("notes", [])
-    if notes:
-        lines.append("Notes: " + " | ".join(str(x) for x in notes))
-
-    examples = rec.get("examples", [])
-    if examples:
-        lines.append("Examples: " + " | ".join(str(x) for x in examples))
-
+        lines.append("Parameters: " + "; ".join(f"{k} = {v}" for k, v in params.items()))
+    if rec.get("notes"):
+        lines.append("Notes: " + " | ".join(str(x) for x in rec["notes"]))
+    if rec.get("examples"):
+        lines.append("Examples: " + " | ".join(str(x) for x in rec["examples"]))
     neighbours = rec.get("neighbours", [])
     if neighbours:
         neighbour_text = ", ".join(
             n.get("syntax", "") or n.get("entry_name", "")
-            for n in neighbours
-            if isinstance(n, dict)
+            for n in neighbours if isinstance(n, dict)
         )
         if neighbour_text:
             lines.append(f"Neighbours: {neighbour_text}")
-
     lines.append(f"Section Title: {rec.get('section_title', '')}")
-
     return "\n".join(x for x in lines if x.strip())
 
 
-async def import_manual_records(records: list[dict[str, Any]], source_path: Path, file_hash: str) -> list[str]:
+async def _import_records(records: list[dict[str, Any]], source_path: Path, file_hash: str) -> list[str]:
     document_ids = []
     async with HaikuRAG(DB_PATH, create=True) as client:
         for i, rec in enumerate(records):
-            text = record_to_text(rec)
-            title = rec.get("syntax") or rec.get("entry_name") or f"{source_path.stem}-{i}"
-            uri = f"manual://{source_path.name}#{i}"
-
             doc = await client.create_document(
-                text,
-                title=title,
-                uri=uri,
+                record_to_text(rec),
+                title=rec.get("syntax") or rec.get("entry_name") or f"{source_path.stem}-{i}",
+                uri=f"manual://{source_path.name}#{i}",
                 metadata={
                     "source_type": "instruction_manual",
                     "source_raw_path": str(source_path),
@@ -177,30 +176,71 @@ async def import_manual_records(records: list[dict[str, Any]], source_path: Path
     return document_ids
 
 
-def process_non_manual(path: Path) -> None:
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    dst = PROCESSED_DIR / path.name
-    shutil.copy2(path, dst)
-    logging.info(f"[normal] copied {path} -> {dst}")
+def process_complex_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> None:
+    """Docling → LLM extraction → command records into RAG, plain sections
+    (where no commands were found) stripped of images and saved to PROCESSED_DIR."""
+    markdown, _ = convert_document(path)
+    logging.info(f"[complex] Docling conversion done for {path.name}")
 
+    records, plain_sections = main_func(markdown, watcher_call=True)
+    logging.info(f"[complex] extracted {len(records)} command records, {len(plain_sections)} plain sections")
 
-def process_manual(path: Path, file_hash: str, state: dict) -> None:
-    records, plain_sections = preprocess_manual(path)
+    document_ids = asyncio.run(_import_records(records, path, file_hash))
 
-    document_ids = asyncio.run(import_manual_records(records, path, file_hash))
-
-    plain_md = save_plain_sections_as_markdown(plain_sections, path)
+    # Only the plain sections (no commands found) go to docs_processed,
+    # so command sections aren't added to RAG a second time.
+    plain_md = None
+    content = _IMAGE_RE.sub("", "\n\n".join(s for s in plain_sections if s.strip()))
+    if content.strip():
+        PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+        plain_md = PROCESSED_DIR / f"{path.stem}.md"
+        plain_md.write_text(content, encoding="utf-8")
+        logging.info(f"[complex] plain sections saved -> {plain_md}")
 
     state["files"][str(path)] = {
         "sha256": file_hash,
-        "kind": "manual",
+        "kind": "complex_pdf",
         "document_ids": document_ids,
         "plain_md_path": str(plain_md) if plain_md else None,
         "processed_at": time.time(),
     }
     save_state(state)
-    logging.info(f"[manual] imported {len(records)} command records + plain text -> {plain_md} from {path.name}")
+    logging.info(f"[complex] done: {len(records)} records into RAG + plain text -> {plain_md}")
 
+
+def process_simple_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> None:
+    """Copy a plain PDF straight to PROCESSED_DIR; haiku RAG handles chunking."""
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    dst = PROCESSED_DIR / path.name
+    shutil.copy2(path, dst)
+    logging.info(f"[simple] copied {path.name} -> {dst}")
+
+    state["files"][str(path)] = {
+        "sha256": file_hash,
+        "kind": "simple_pdf",
+        "processed_at": time.time(),
+    }
+    save_state(state)
+
+
+def process_other(path: Path, file_hash: str, state: dict[str, Any]) -> None:
+    """Copy non-PDF files straight to PROCESSED_DIR."""
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    dst = PROCESSED_DIR / path.name
+    shutil.copy2(path, dst)
+    logging.info(f"[other] copied {path.name} -> {dst}")
+
+    state["files"][str(path)] = {
+        "sha256": file_hash,
+        "kind": "other",
+        "processed_at": time.time(),
+    }
+    save_state(state)
+
+
+# ---------------------------------------------------------------------------
+# Routing
+# ---------------------------------------------------------------------------
 
 def handle_file(path: Path, state: dict[str, Any]) -> None:
     if not path.exists() or not path.is_file():
@@ -211,40 +251,24 @@ def handle_file(path: Path, state: dict[str, Any]) -> None:
         return
 
     file_hash = sha256_file(path)
-    old_hash = state["files"].get(str(path), {}).get("sha256")
-
-    if old_hash == file_hash:
+    if state["files"].get(str(path), {}).get("sha256") == file_hash:
         logging.info(f"[skip] unchanged: {path.name}")
         return
 
-    if is_instruction_manual(path):
-        process_manual(path, file_hash, state)
-        #kind = "manual"
+    if path.suffix.lower() == ".pdf" and is_instruction_manual(path):
+        if pdf_has_tables_or_images(path):
+            logging.info(f"[route] instruction manual with tables/images: {path.name}")
+            process_complex_pdf(path, file_hash, state)
+        else:
+            logging.info(f"[route] instruction manual, plain PDF: {path.name}")
+            process_simple_pdf(path, file_hash, state)
     else:
-        process_non_manual(path)
-        state["files"][str(path)] = {
-            "sha256": file_hash,
-            "kind": "normal",
-            "processed_at": time.time(),
-        }
-        save_state(state)
+        process_other(path, file_hash, state)
 
-def delete_manual_documents(document_ids: list[str]) -> None:
-    for doc_id in document_ids:
-        try:
-            subprocess.run(
-                [
-                    "haiku-rag",
-                    "--config", "/app/haiku.rag.yaml",
-                    "delete",
-                    doc_id,
-                    "--db", "/data/haiku.rag.lancedb",
-                ],
-                check=True,
-            )
-            logging.info(f"[delete] removed manual doc {doc_id}")
-        except Exception as e:
-            logging.error(f"[delete] failed for {doc_id}: {e}")
+
+# ---------------------------------------------------------------------------
+# Watchdog handler
+# ---------------------------------------------------------------------------
 
 class Handler(FileSystemEventHandler):
     def __init__(self, state: dict[str, Any]) -> None:
@@ -253,16 +277,14 @@ class Handler(FileSystemEventHandler):
     def on_created(self, event):
         if event.is_directory:
             return
-        path = Path(event.src_path)
         time.sleep(1)
-        handle_file(path, self.state)
+        handle_file(Path(event.src_path), self.state)
 
     def on_modified(self, event):
         if event.is_directory:
             return
-        path = Path(event.src_path)
         time.sleep(1)
-        handle_file(path, self.state)
+        handle_file(Path(event.src_path), self.state)
 
     def on_deleted(self, event):
         if event.is_directory:
@@ -270,37 +292,47 @@ class Handler(FileSystemEventHandler):
         path = Path(event.src_path)
         info = self.state["files"].pop(str(path), None)
         save_state(self.state)
+
         if not info:
             logging.warning(f"[delete] no state for {path}")
             return
-        
-        if info and info.get("kind") == "normal":
+
+        kind = info.get("kind")
+
+        if kind == "complex_pdf":
+            import subprocess
+            for doc_id in info.get("document_ids", []):
+                try:
+                    subprocess.run(
+                        ["haiku-rag", "--config", "/app/haiku.rag.yaml", "delete", doc_id, "--db", "/data/haiku.rag.lancedb"],
+                        check=True,
+                    )
+                    logging.info(f"[delete] removed RAG doc {doc_id}")
+                except Exception as e:
+                    logging.error(f"[delete] failed for {doc_id}: {e}")
+            plain_md = info.get("plain_md_path")
+            if plain_md:
+                p = Path(plain_md)
+                if p.exists():
+                    p.unlink()
+                    logging.info(f"[delete] removed plain markdown {p}")
+
+        elif kind in ("simple_pdf", "other"):
             processed = PROCESSED_DIR / path.name
             if processed.exists():
                 processed.unlink()
                 logging.info(f"[delete] removed processed file {processed}")
 
-        # delete command records from RAG, then remove the plain-text .md so
-        # haiku-monitor's delete_orphans cleans up its chunks automatically
-        elif info.get("kind") == "manual":
-            doc_ids = info.get("document_ids", [])
-            delete_manual_documents(doc_ids)
-
-            plain_md = info.get("plain_md_path")
-            if plain_md:
-                plain_md_path = Path(plain_md)
-                if plain_md_path.exists():
-                    plain_md_path.unlink()
-                    logging.info(f"[delete] removed plain markdown {plain_md_path}")
-
-            logging.info(f"[delete] raw file removed: {path}")
+        logging.info(f"[delete] handled removal of {path.name} (kind={kind})")
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 def initial_scan(state: dict[str, Any]) -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-
     for path in RAW_DIR.rglob("*"):
         if path.is_file():
             handle_file(path, state)
@@ -313,7 +345,6 @@ def main() -> None:
     observer = Observer()
     observer.schedule(Handler(state), str(RAW_DIR), recursive=True)
     observer.start()
-
     logging.info(f"Watching {RAW_DIR}")
 
     try:
