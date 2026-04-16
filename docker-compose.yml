@@ -104,6 +104,6 @@ services:
     image: ghcr.io/docling-project/docling-serve:latest
     restart: unless-stopped
     ports:
-      - "5001:5001"
+      - "5002:5001"
     #volumes:
     #  - /data2/nkhajehn/docling_tmp:/tmp

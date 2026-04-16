@@ -256,12 +256,8 @@ def handle_file(path: Path, state: dict[str, Any]) -> None:
         return
 
     if path.suffix.lower() == ".pdf" and is_instruction_manual(path):
-        if pdf_has_tables_or_images(path):
-            logging.info(f"[route] instruction manual with tables/images: {path.name}")
-            process_complex_pdf(path, file_hash, state)
-        else:
-            logging.info(f"[route] instruction manual, plain PDF: {path.name}")
-            process_simple_pdf(path, file_hash, state)
+        logging.info(f"[route] instruction manual: {path.name}")
+        process_complex_pdf(path, file_hash, state)
     else:
         process_other(path, file_hash, state)
 

@@ -21,18 +21,17 @@ SECTION_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+.+$")
 
 SYSTEM_PROMPT = """You extract command definitions from device-manual markdown.
 
-Return valid JSON only.
+Your response MUST always be a JSON array [ ... ], even when only one command is found.
+Never return a bare JSON object. Never return plain text. Never use markdown fences.
 
 Interpret HTML-escaped symbols correctly:
 - &lt; means <
 - &gt; means >
 - &amp; means &
 
-You must return either:
-1. a single JSON object, or
-2. a JSON array of objects
+If the chunk contains multiple commands, return one array element per command — do not collapse them into one.
 
-Each object must use exactly these keys:
+Each array element must use exactly these keys:
 - entry_name
 - syntax
 - command_type
@@ -50,14 +49,8 @@ Rules:
   - "" for strings
   - {} for parameters
   - [] for notes/examples
-- command_type must be one of:
-  - "query"
-  - "set"
-  - "test"
-  - "execute"
-  - ""
-- If the chunk does not describe any command, return [].
-- Return JSON only. No markdown fences. No explanation.
+- command_type must be one of: "query", "set", "test", "execute", or ""
+- If the chunk describes no commands, return [].
 """
 USER_PROMPT_TEMPLATE = """Extract all command or instruction record(s) from this documentation chunk.
 
@@ -263,12 +256,35 @@ def add_surrounding_neighbours(records: List[Dict[str, Any]], window: int = 5) -
     return records
 
 
+FORMAT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "entry_name":    {"type": "string"},
+            "syntax":        {"type": "string"},
+            "command_type":  {"type": "string", "enum": ["query", "set", "test", "execute", ""]},
+            "description":   {"type": "string"},
+            "response":      {"type": "string"},
+            "parameters":    {"type": "object"},
+            "notes":         {"type": "array", "items": {"type": "string"}},
+            "examples":      {"type": "array", "items": {"type": "string"}},
+            "section_title": {"type": "string"},
+        },
+        "required": [
+            "entry_name", "syntax", "command_type", "description",
+            "response", "parameters", "notes", "examples", "section_title",
+        ],
+    },
+}
+
+
 def call_llm(client, chunk: str, model_name: str) -> str:
     response = client.generate(
         model=model_name,
         system=SYSTEM_PROMPT,
         prompt=USER_PROMPT_TEMPLATE.format(chunk=chunk),
-        format="json",
+        format=FORMAT_SCHEMA,
         options={"temperature": 0},
     )
     return response["response"]
