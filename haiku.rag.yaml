@@ -45,8 +45,8 @@ reranking:
   model: null
 processing:
   chunk_size: 512
-  converter: docling-serve
-  chunker: docling-serve
+  converter: docling-local
+  chunker: docling-local
   chunker_type: hybrid
   chunking_tokenizer: Qwen/Qwen3-Embedding-0.6B
   chunking_merge_peers: false

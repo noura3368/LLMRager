@@ -173,17 +173,18 @@ def process_complex_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> No
         for i, rec in enumerate(records):
             syntax = rec.get("syntax", "").strip()
             entry_name = rec.get("entry_name", "").strip()
-            # Prefer syntax unless it is only a bare parameter like "<N>"
-            # (no alphabetic command name), in which case use entry_name.
-            if syntax and re.search(r'[A-Za-z_]', syntax):
+            # Strip angle-bracket parameter tokens (e.g. "<N>", "<value>")
+            # then check if a real command name remains. If not, use entry_name.
+            syntax_base = re.sub(r'<[^>]*>', '', syntax).strip()
+            if syntax_base and re.search(r'[A-Za-z_]', syntax_base):
                 heading = syntax
             else:
-                heading = entry_name or syntax or f"{path.stem}-{i}"
+                heading = entry_name or syntax_base or f"{path.stem}-{i}"
             body = record_to_text(rec)
             if body.strip():
                 parts.append(f"## {heading}\n\n{body}")
         if parts:
-            commands_content = "\n\n---\n\n".join(parts)
+            commands_content = "\n\n".join(parts)
             commands_md = PROCESSED_DIR / f"{path.stem}_commands.md"
             commands_md.write_text(commands_content, encoding="utf-8")
             commands_md_path = str(commands_md)
