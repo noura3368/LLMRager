@@ -163,11 +163,15 @@ def process_complex_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> No
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
     # Each command record gets its own file so the chunker cannot split it.
+    # A markdown heading is prepended so docling-serve treats it as a valid
+    # document (avoids "document.json failed to convert" warning).
     record_md_paths: list[str] = []
     for i, rec in enumerate(records):
-        content = record_to_text(rec)
-        if not content.strip():
+        body = record_to_text(rec)
+        if not body.strip():
             continue
+        heading = rec.get("syntax") or rec.get("entry_name") or f"{path.stem}-{i}"
+        content = f"### {heading}\n\n{body}"
         rec_path = PROCESSED_DIR / f"{path.stem}_cmd_{i:04d}.md"
         rec_path.write_text(content, encoding="utf-8")
         record_md_paths.append(str(rec_path))
