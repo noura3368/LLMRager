@@ -151,39 +151,46 @@ def record_to_text(rec: dict[str, Any]) -> str:
 
 
 def process_complex_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> None:
-    """Docling → LLM extraction → write all content (command records + plain
-    sections) as a single markdown file to PROCESSED_DIR so haiku-monitor
-    handles chunking and RAG ingestion uniformly."""
+    """Docling → LLM extraction → one .md file per command record in
+    PROCESSED_DIR so haiku-monitor ingests each record as a single atomic
+    chunk. Plain (non-command) sections go into one combined .md file."""
     markdown, _ = convert_document(path)
     logging.info(f"[complex] Docling conversion done for {path.name}")
 
     records, plain_sections = main_func(markdown, watcher_call=True)
     logging.info(f"[complex] extracted {len(records)} command records, {len(plain_sections)} plain sections")
 
-    # Format extracted command records as readable text blocks
-    records_parts = [record_to_text(rec) for rec in records]
-    records_content = "\n\n---\n\n".join(records_parts)
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Strip image syntax from plain sections
+    # Each command record gets its own file so the chunker cannot split it.
+    record_md_paths: list[str] = []
+    for i, rec in enumerate(records):
+        content = record_to_text(rec)
+        if not content.strip():
+            continue
+        rec_path = PROCESSED_DIR / f"{path.stem}_cmd_{i:04d}.md"
+        rec_path.write_text(content, encoding="utf-8")
+        record_md_paths.append(str(rec_path))
+    logging.info(f"[complex] wrote {len(record_md_paths)} command record files")
+
+    # Plain sections (no commands found) go into a single combined file.
+    plain_md_path = None
     plain_content = _IMAGE_RE.sub("", "\n\n".join(s for s in plain_sections if s.strip()))
-
-    combined = "\n\n".join(filter(None, [records_content, plain_content]))
-
-    processed_md = None
-    if combined.strip():
-        PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-        processed_md = PROCESSED_DIR / f"{path.stem}.md"
-        processed_md.write_text(combined, encoding="utf-8")
-        logging.info(f"[complex] content saved -> {processed_md}")
+    if plain_content.strip():
+        plain_md = PROCESSED_DIR / f"{path.stem}_plain.md"
+        plain_md.write_text(plain_content, encoding="utf-8")
+        plain_md_path = str(plain_md)
+        logging.info(f"[complex] plain sections saved -> {plain_md}")
 
     state["files"][str(path)] = {
         "sha256": file_hash,
         "kind": "complex_pdf",
-        "processed_md_path": str(processed_md) if processed_md else None,
+        "record_md_paths": record_md_paths,
+        "plain_md_path": plain_md_path,
         "processed_at": time.time(),
     }
     save_state(state)
-    logging.info(f"[complex] done: {len(records)} command records + {len(plain_sections)} plain sections -> {processed_md}")
+    logging.info(f"[complex] done: {len(record_md_paths)} record files + plain -> {plain_md_path}")
 
 
 def process_simple_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> None:
@@ -274,12 +281,19 @@ class Handler(FileSystemEventHandler):
         kind = info.get("kind")
 
         if kind == "complex_pdf":
-            processed_md = info.get("processed_md_path") or info.get("plain_md_path")
-            if processed_md:
-                p = Path(processed_md)
+            # Remove per-record files
+            for rp in info.get("record_md_paths", []):
+                p = Path(rp)
                 if p.exists():
                     p.unlink()
-                    logging.info(f"[delete] removed processed markdown {p}")
+                    logging.info(f"[delete] removed record file {p}")
+            # Remove plain-sections file
+            plain_md = info.get("plain_md_path") or info.get("processed_md_path")
+            if plain_md:
+                p = Path(plain_md)
+                if p.exists():
+                    p.unlink()
+                    logging.info(f"[delete] removed plain markdown {p}")
 
         elif kind in ("simple_pdf", "other"):
             processed = PROCESSED_DIR / path.name
