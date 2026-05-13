@@ -124,8 +124,9 @@ _IMAGE_RE = re.compile(r"!\[.*?\]\([^)]*\)")
 
 
 def record_to_text(rec: dict[str, Any]) -> str:
+    entry_name = rec.get('entry_name', '')
     lines = [
-        f"Entry Name: {rec.get('entry_name', '')}",
+        f"## {entry_name}",
         f"Command Syntax: {rec.get('syntax', '')}",
         f"Command Type: {rec.get('command_type', '')}",
         f"Description: {rec.get('description', '')}",
@@ -147,67 +148,64 @@ def record_to_text(rec: dict[str, Any]) -> str:
         if neighbour_text:
             lines.append(f"Neighbours: {neighbour_text}")
     lines.append(f"Section Title: {rec.get('section_title', '')}")
-    return "\n".join(x for x in lines if x.strip())
+    return "\n".join(lines[0:1] + [x for x in lines[1:] if x.strip()])
+
+
+def process_technical_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> None:
+    """Docling conversion → strip images → write markdown to PROCESSED_DIR."""
+    markdown, _ = convert_document(path)
+    logging.info(f"[technical] Docling conversion done for {path.name}")
+
+    clean_markdown = _IMAGE_RE.sub("", markdown)
+
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    processed_md = PROCESSED_DIR / f"{path.stem}.md"
+    processed_md.write_text(clean_markdown, encoding="utf-8")
+    logging.info(f"[technical] saved -> {processed_md}")
+
+    state["files"][str(path)] = {
+        "sha256": file_hash,
+        "kind": "technical_pdf",
+        "processed_md_path": str(processed_md),
+        "processed_at": time.time(),
+    }
+    save_state(state)
 
 
 def process_complex_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> None:
-    """Docling → LLM extraction → write all command records as a single
-    structured markdown file (one H2 section per record) so haiku-monitor
-    sends one substantial document to docling-serve's chunk endpoint.
-    The hybrid chunker splits at H2 boundaries, preserving record atomicity.
-    Plain (non-command) sections go into a separate combined file."""
+    """Docling → LLM extraction → write all content (command records + plain
+    sections) as a single markdown file to PROCESSED_DIR so haiku-monitor
+    handles chunking and RAG ingestion uniformly."""
     markdown, _ = convert_document(path)
     logging.info(f"[complex] Docling conversion done for {path.name}")
 
     records, plain_sections = main_func(markdown, watcher_call=True)
     logging.info(f"[complex] extracted {len(records)} command records, {len(plain_sections)} plain sections")
 
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    # Format extracted command records as readable text blocks
+    records_parts = [record_to_text(rec) for rec in records]
+    records_content = "\n\n".join(records_parts)
 
-    # All command records in one file — each under its own H2 heading.
-    # A single substantial document succeeds where tiny per-record files fail
-    # in docling-serve's hybrid chunk endpoint.
-    commands_md_path = None
-    if records:
-        parts = []
-        for i, rec in enumerate(records):
-            syntax = rec.get("syntax", "").strip()
-            entry_name = rec.get("entry_name", "").strip()
-            # Strip angle-bracket parameter tokens (e.g. "<N>", "<value>")
-            # then check if a real command name remains. If not, use entry_name.
-            syntax_base = re.sub(r'<[^>]*>', '', syntax).strip()
-            if syntax_base and re.search(r'[A-Za-z_]', syntax_base):
-                heading = syntax
-            else:
-                heading = entry_name or syntax_base or f"{path.stem}-{i}"
-            body = record_to_text(rec)
-            if body.strip():
-                parts.append(f"## {heading}\n\n{body}")
-        if parts:
-            commands_content = "\n\n".join(parts)
-            commands_md = PROCESSED_DIR / f"{path.stem}_commands.md"
-            commands_md.write_text(commands_content, encoding="utf-8")
-            commands_md_path = str(commands_md)
-            logging.info(f"[complex] {len(parts)} command records saved -> {commands_md}")
-
-    # Plain sections (no commands found) go into a single combined file.
-    plain_md_path = None
+    # Strip image syntax from plain sections
     plain_content = _IMAGE_RE.sub("", "\n\n".join(s for s in plain_sections if s.strip()))
-    if plain_content.strip():
-        plain_md = PROCESSED_DIR / f"{path.stem}_plain.md"
-        plain_md.write_text(plain_content, encoding="utf-8")
-        plain_md_path = str(plain_md)
-        logging.info(f"[complex] plain sections saved -> {plain_md}")
+
+    combined = "\n\n".join(filter(None, [records_content, plain_content]))
+
+    processed_md = None
+    if combined.strip():
+        PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+        processed_md = PROCESSED_DIR / f"{path.stem}.md"
+        processed_md.write_text(combined, encoding="utf-8")
+        logging.info(f"[complex] content saved -> {processed_md}")
 
     state["files"][str(path)] = {
         "sha256": file_hash,
         "kind": "complex_pdf",
-        "commands_md_path": commands_md_path,
-        "plain_md_path": plain_md_path,
+        "processed_md_path": str(processed_md) if processed_md else None,
         "processed_at": time.time(),
     }
     save_state(state)
-    logging.info(f"[complex] done: commands -> {commands_md_path}, plain -> {plain_md_path}")
+    logging.info(f"[complex] done: {len(records)} command records + {len(plain_sections)} plain sections -> {processed_md}")
 
 
 def process_simple_pdf(path: Path, file_hash: str, state: dict[str, Any]) -> None:
@@ -258,8 +256,8 @@ def handle_file(path: Path, state: dict[str, Any]) -> None:
         return
 
     if path.suffix.lower() == ".pdf" and is_instruction_manual(path):
-        logging.info(f"[route] instruction manual: {path.name}")
-        process_complex_pdf(path, file_hash, state)
+        logging.info(f"[route] technical pdf: {path.name}")
+        process_technical_pdf(path, file_hash, state)
     else:
         process_other(path, file_hash, state)
 
@@ -297,21 +295,13 @@ class Handler(FileSystemEventHandler):
 
         kind = info.get("kind")
 
-        if kind == "complex_pdf":
-            # Remove consolidated commands file and plain-sections file.
-            # Also handles legacy state keys from previous versions.
-            for key in ("commands_md_path", "plain_md_path", "processed_md_path"):
-                p_str = info.get(key)
-                if p_str:
-                    p = Path(p_str)
-                    if p.exists():
-                        p.unlink()
-                        logging.info(f"[delete] removed {p}")
-            for rp in info.get("record_md_paths", []):
-                p = Path(rp)
+        if kind in ("complex_pdf", "technical_pdf"):
+            processed_md = info.get("processed_md_path") or info.get("plain_md_path")
+            if processed_md:
+                p = Path(processed_md)
                 if p.exists():
                     p.unlink()
-                    logging.info(f"[delete] removed legacy record file {p}")
+                    logging.info(f"[delete] removed processed markdown {p}")
 
         elif kind in ("simple_pdf", "other"):
             processed = PROCESSED_DIR / path.name

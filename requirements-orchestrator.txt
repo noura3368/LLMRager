@@ -3,6 +3,5 @@ fastapi
 uvicorn
 httpx
 haiku.rag-slim
-outlines 
 jinja2
 ollama

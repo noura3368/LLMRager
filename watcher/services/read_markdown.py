@@ -21,17 +21,18 @@ SECTION_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+.+$")
 
 SYSTEM_PROMPT = """You extract command definitions from device-manual markdown.
 
-Your response MUST always be a JSON array [ ... ], even when only one command is found.
-Never return a bare JSON object. Never return plain text. Never use markdown fences.
+Return valid JSON only.
 
 Interpret HTML-escaped symbols correctly:
 - &lt; means <
 - &gt; means >
 - &amp; means &
 
-If the chunk contains multiple commands, return one array element per command — do not collapse them into one.
+You must return either:
+1. a single JSON object, or
+2. a JSON array of objects
 
-Each array element must use exactly these keys:
+Each object must use exactly these keys:
 - entry_name
 - syntax
 - command_type
@@ -49,10 +50,17 @@ Rules:
   - "" for strings
   - {} for parameters
   - [] for notes/examples
-- command_type must be one of: "query", "set", "test", "execute", or ""
-- If the chunk describes no commands, return [].
+- command_type must be one of:
+  - "query"
+  - "set"
+  - "test"
+  - "execute"
+  - ""
+- If the chunk does not describe any command, return [].
+- Return JSON only. No markdown fences. No explanation.
 """
-USER_PROMPT_TEMPLATE = """Extract all command or instruction record(s) from this documentation chunk.
+
+USER_PROMPT_TEMPLATE = """Extract command record(s) from this markdown chunk.
 
 Markdown:
 {chunk}
