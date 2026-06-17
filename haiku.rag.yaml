@@ -42,7 +42,9 @@ embeddings:
     vector_dim: 768
     base_url: null
 reranking:
-  model: null
+  model:
+    provider: mxbai
+    name: mixedbread-ai/mxbai-rerank-base-v2
 processing:
   chunk_size: 512
   converter: docling-serve
